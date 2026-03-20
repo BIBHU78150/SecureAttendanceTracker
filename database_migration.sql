@@ -1,7 +1,11 @@
 -- Supabase Database Migration for Geofenced Event Attendance Tracker
 
--- Create Enums
-CREATE TYPE user_role AS ENUM ('admin', 'volunteer');
+-- Create Enums (Idempotent)
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE user_role AS ENUM ('admin', 'volunteer');
+    END IF;
+END $$;
 
 -- Table: teams
 CREATE TABLE IF NOT EXISTS public.teams (
