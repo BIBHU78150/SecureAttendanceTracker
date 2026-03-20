@@ -34,6 +34,10 @@ CREATE TABLE IF NOT EXISTS public.whitelisted_users (
     mobile_number TEXT -- New field for student contact
 );
 
+-- Ensure columns exist for existing tables
+ALTER TABLE public.whitelisted_users ADD COLUMN IF NOT EXISTS initial_password TEXT;
+ALTER TABLE public.whitelisted_users ADD COLUMN IF NOT EXISTS mobile_number TEXT;
+
 -- Table: profiles
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -46,6 +50,9 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     mobile_number TEXT, -- New field synced from whitelist or added by admin
     created_at TIMESTAMPTZ DEFAULT now()
 );
+
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS mobile_number TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
 
 -- Table: locations
 CREATE TABLE IF NOT EXISTS public.locations (
