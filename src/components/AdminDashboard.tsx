@@ -38,17 +38,23 @@ const AdminDashboard: React.FC = () => {
       if (teamsData.length > 0 && !wlTeamId) setWlTeamId(teamsData[0].id);
     }
 
-    // Fetch whitelist with profile info to see if joined
-    const { data: wlData, error: wlError } = await supabase
-      .from('whitelisted_users')
-      .select(`
-        *,
-        profiles:profiles(id, full_name, role, mobile_number, device_token)
-      `);
+    // Fetch whitelist and profiles separately to avoid join relationship error
+    const { data: wlData, error: wlError } = await supabase.from('whitelisted_users').select('*');
     if (wlError) console.error("Error fetching whitelist:", wlError.message);
+
+    const { data: profilesData, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, role, mobile_number, device_token, team_id');
+    if (profilesError) console.error("Error fetching profiles (for enrollment status):", profilesError.message);
+
     if (wlData) {
-      console.log("Whitelisted users found:", wlData.length);
-      setWhitelist(wlData);
+      // Join in memory
+      const joinedData = wlData.map(entry => ({
+        ...entry,
+        profiles: profilesData?.find(p => p.email.toLowerCase() === entry.email.toLowerCase()) || null
+      }));
+      console.log("Whitelisted users (joined in UI) found:", joinedData.length);
+      setWhitelist(joinedData);
     }
 
     // Fetch today's logs with profile info
