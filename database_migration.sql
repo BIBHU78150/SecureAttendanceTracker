@@ -147,8 +147,6 @@ BEGIN
         RAISE EXCEPTION 'This email is not whitelisted for this event.';
     END IF;
     
-    INSERT INTO public.profiles (id, email, full_name, roll_number, mt_id, role, mobile_number) -- Changed team_id to mt_id to reflect whatever column name was intended or fix it
-    -- Wait, looking at the previous diff, it was team_id. Let me stick to team_id.
     INSERT INTO public.profiles (id, email, full_name, roll_number, team_id, role, mobile_number)
     VALUES (
         NEW.id,
