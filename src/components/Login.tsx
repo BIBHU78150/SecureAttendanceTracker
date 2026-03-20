@@ -32,10 +32,13 @@ const Login: React.FC = () => {
     setAuthLoading(true);
 
     try {
+      console.log("Attempting Roll Login for:", volRoll);
       // 1. Look up the whitelisted email
       const { data: mappedEmail, error: rpcError } = await supabase.rpc('get_email_by_roll', { roll_no: volRoll });
+      console.log("Mapped Email from RPC:", mappedEmail);
       
       if (rpcError || !mappedEmail) {
+        console.error("RPC Error or No Email:", rpcError);
         setVolError('Roll Number not found in whitelist.');
         setAuthLoading(false);
         return;
@@ -49,13 +52,19 @@ const Login: React.FC = () => {
 
       // 3. If login fails (user might not exist yet), check if admin-assigned password matches
       if (authError) {
-        if (authError.message.includes('Invalid login credentials')) {
-          const { data: isInitialPassMatch } = await supabase.rpc('check_whitelist_password', { 
+        console.log("Initial Sign-in failed (expected if new):", authError.message);
+        
+        if (authError.message.toLowerCase().includes('invalid login credentials')) {
+          const { data: isInitialPassMatch, error: passError } = await supabase.rpc('check_whitelist_password', { 
             roll_no: volRoll, 
             pass: volPassword 
           });
+          
+          console.log("Initial password match check result:", isInitialPassMatch);
+          if (passError) console.error("Pass RPC Error:", passError.message);
 
           if (isInitialPassMatch) {
+            console.log("Password matched! Attempting auto-signup for:", mappedEmail);
             // Auto Sign Up using the whitelisted email and assigned password
             const { error: signUpError } = await supabase.auth.signUp({
               email: mappedEmail,
@@ -66,12 +75,15 @@ const Login: React.FC = () => {
             });
 
             if (signUpError) {
+              console.error("SignUp Error:", signUpError.message);
               setVolError(`Final activation failed: ${signUpError.message}`);
             } else {
+              console.log("SignUp successful! User activated.");
               // Sign up successful, Supabase usually logs them in automatically or asks for email verification
               // If email verification is OFF, they are now logged in.
             }
           } else {
+            console.warn("Initial password did NOT match.");
             setVolError('Invalid Roll Number or Password.');
           }
         } else {
@@ -79,6 +91,7 @@ const Login: React.FC = () => {
         }
       }
     } catch (err: any) {
+      console.error("Unexpected catch block error:", err);
       setVolError('An unexpected error occurred during login.');
     } finally {
       setAuthLoading(false);
