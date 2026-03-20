@@ -77,42 +77,44 @@ CREATE POLICY "Admins can manage whitelisted users" ON public.whitelisted_users 
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
 );
 
+-- Helper function to check if a user is an admin without triggering RLS recursion
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Profiles: Users can select/update their own; Admins can do all
 CREATE POLICY "Users can view their own profile" ON public.profiles FOR SELECT USING (
-    id = auth.uid() OR 
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    id = auth.uid() OR public.is_admin()
 );
 
 CREATE POLICY "Users can update their own device_token" ON public.profiles FOR UPDATE USING (
-    id = auth.uid() OR 
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    id = auth.uid() OR public.is_admin()
 );
 
 -- Locations: Viewable by all, managed by admin
 CREATE POLICY "Locations viewable by everyone" ON public.locations FOR SELECT USING (true);
-CREATE POLICY "Admins can manage locations" ON public.locations FOR ALL USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-);
+CREATE POLICY "Admins can manage locations" ON public.locations FOR ALL USING (public.is_admin());
 
 -- Attendance Logs: Users insert/update their own logs, Admins can do all
 CREATE POLICY "Users can view own logs" ON public.attendance_logs FOR SELECT USING (
-    user_id = auth.uid() OR 
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    user_id = auth.uid() OR public.is_admin()
 );
 
 CREATE POLICY "Users can insert own logs" ON public.attendance_logs FOR INSERT WITH CHECK (
-    user_id = auth.uid() OR 
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    user_id = auth.uid() OR public.is_admin()
 );
 
 CREATE POLICY "Users can update own logs" ON public.attendance_logs FOR UPDATE USING (
-    user_id = auth.uid() OR 
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    user_id = auth.uid() OR public.is_admin()
 );
 
-CREATE POLICY "Admins can manage logs" ON public.attendance_logs FOR ALL USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-);
+CREATE POLICY "Admins can manage logs" ON public.attendance_logs FOR ALL USING (public.is_admin());
 
 -- Creating the Auth Trigger for automatically populating Profile details
 CREATE OR REPLACE FUNCTION public.handle_new_user()
