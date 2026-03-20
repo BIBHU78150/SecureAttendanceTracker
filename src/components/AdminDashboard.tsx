@@ -31,24 +31,29 @@ const AdminDashboard: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     // Fetch teams
-    const { data: teamsData } = await supabase.from('teams').select('*');
+    const { data: teamsData, error: teamsError } = await supabase.from('teams').select('*');
+    if (teamsError) console.error("Error fetching teams:", teamsError.message);
     if (teamsData) {
       setTeams(teamsData);
       if (teamsData.length > 0 && !wlTeamId) setWlTeamId(teamsData[0].id);
     }
 
     // Fetch whitelist with profile info to see if joined
-    const { data: wlData } = await supabase
+    const { data: wlData, error: wlError } = await supabase
       .from('whitelisted_users')
       .select(`
         *,
         profiles:profiles(id, full_name, role, mobile_number, device_token)
       `);
-    if (wlData) setWhitelist(wlData);
+    if (wlError) console.error("Error fetching whitelist:", wlError.message);
+    if (wlData) {
+      console.log("Whitelisted users found:", wlData.length);
+      setWhitelist(wlData);
+    }
 
     // Fetch today's logs with profile info
     const today = new Date().toISOString().split('T')[0];
-    const { data: logsData } = await supabase
+    const { data: logsData, error: logsError } = await supabase
       .from('attendance_logs')
       .select(`
         *,
@@ -57,6 +62,7 @@ const AdminDashboard: React.FC = () => {
       `)
       .eq('date', today);
       
+    if (logsError) console.error("Error fetching logs:", logsError.message);
     if (logsData) setLogs(logsData);
     setLoading(false);
   };
