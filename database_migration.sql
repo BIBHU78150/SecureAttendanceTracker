@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS public.whitelisted_users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email TEXT UNIQUE NOT NULL,
     roll_number TEXT NOT NULL,
-    team_id UUID NOT NULL REFERENCES public.teams(id) ON DELETE RESTRICT
+    team_id UUID NOT NULL REFERENCES public.teams(id) ON DELETE RESTRICT,
+    initial_password TEXT -- Admin assigned password for first-time Roll No login
 );
 
 -- Table: profiles
@@ -169,6 +170,7 @@ CREATE INDEX IF NOT EXISTS profiles_role_idx ON public.profiles (role);
 
 -- RPC Function for looking up email by roll number (for custom Roll No login logic)
 -- Runs as SECURITY DEFINER to bypass RLS entirely for unauthenticated users.
+DROP FUNCTION IF EXISTS public.get_email_by_roll(text);
 CREATE OR REPLACE FUNCTION public.get_email_by_roll(roll_no text)
 RETURNS text
 LANGUAGE plpgsql
@@ -179,5 +181,20 @@ DECLARE
 BEGIN
   SELECT email INTO associated_email FROM public.whitelisted_users WHERE roll_number = roll_no LIMIT 1;
   RETURN associated_email;
+END;
+$$;
+
+-- RPC Function for checking initial password if Auth user doesn't exist yet
+DROP FUNCTION IF EXISTS public.check_whitelist_password(text, text);
+CREATE OR REPLACE FUNCTION public.check_whitelist_password(roll_no text, pass text)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.whitelisted_users 
+    WHERE roll_number = roll_no AND initial_password = pass
+  );
 END;
 $$;

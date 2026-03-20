@@ -32,7 +32,7 @@ const Login: React.FC = () => {
     setAuthLoading(true);
 
     try {
-      // Look up the email
+      // 1. Look up the whitelisted email
       const { data: mappedEmail, error: rpcError } = await supabase.rpc('get_email_by_roll', { roll_no: volRoll });
       
       if (rpcError || !mappedEmail) {
@@ -41,14 +41,42 @@ const Login: React.FC = () => {
         return;
       }
 
-      // Log in with mapped email
+      // 2. Try standard Login 
       const { error: authError } = await supabase.auth.signInWithPassword({
         email: mappedEmail,
         password: volPassword
       });
 
+      // 3. If login fails (user might not exist yet), check if admin-assigned password matches
       if (authError) {
-        setVolError(`Authentication failed: ${authError.message}`);
+        if (authError.message.includes('Invalid login credentials')) {
+          const { data: isInitialPassMatch } = await supabase.rpc('check_whitelist_password', { 
+            roll_no: volRoll, 
+            pass: volPassword 
+          });
+
+          if (isInitialPassMatch) {
+            // Auto Sign Up using the whitelisted email and assigned password
+            const { error: signUpError } = await supabase.auth.signUp({
+              email: mappedEmail,
+              password: volPassword,
+              options: {
+                data: { full_name: `Student ${volRoll}` }
+              }
+            });
+
+            if (signUpError) {
+              setVolError(`Final activation failed: ${signUpError.message}`);
+            } else {
+              // Sign up successful, Supabase usually logs them in automatically or asks for email verification
+              // If email verification is OFF, they are now logged in.
+            }
+          } else {
+            setVolError('Invalid Roll Number or Password.');
+          }
+        } else {
+          setVolError(`Authentication failed: ${authError.message}`);
+        }
       }
     } catch (err: any) {
       setVolError('An unexpected error occurred during login.');

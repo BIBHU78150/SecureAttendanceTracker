@@ -17,6 +17,7 @@ const AdminDashboard: React.FC = () => {
   const [wlEmail, setWlEmail] = useState('');
   const [wlRoll, setWlRoll] = useState('');
   const [wlTeamId, setWlTeamId] = useState('');
+  const [wlPassword, setWlPassword] = useState('');
   const [wlLoading, setWlLoading] = useState(false);
 
   useEffect(() => {
@@ -29,11 +30,16 @@ const AdminDashboard: React.FC = () => {
     const { data: teamsData } = await supabase.from('teams').select('*');
     if (teamsData) {
       setTeams(teamsData);
-      if (teamsData.length > 0) setWlTeamId(teamsData[0].id);
+      if (teamsData.length > 0 && !wlTeamId) setWlTeamId(teamsData[0].id);
     }
 
-    // Fetch whitelist
-    const { data: wlData } = await supabase.from('whitelisted_users').select('*');
+    // Fetch whitelist with profile info to see if joined
+    const { data: wlData } = await supabase
+      .from('whitelisted_users')
+      .select(`
+        *,
+        profiles:profiles(id, full_name, role)
+      `);
     if (wlData) setWhitelist(wlData);
 
     // Fetch today's logs with profile info
@@ -64,7 +70,8 @@ const AdminDashboard: React.FC = () => {
     const { error } = await supabase.from('whitelisted_users').insert({
       email: wlEmail,
       roll_number: wlRoll,
-      team_id: wlTeamId
+      team_id: wlTeamId,
+      initial_password: wlPassword
     });
     
     if (error) {
@@ -72,6 +79,7 @@ const AdminDashboard: React.FC = () => {
     } else {
       setWlEmail('');
       setWlRoll('');
+      setWlPassword('');
       fetchData();
     }
     setWlLoading(false);
@@ -270,22 +278,26 @@ const AdminDashboard: React.FC = () => {
               </h2>
               <p className="text-sm text-slate-500 mb-4">Register an allowed student email to their Roll Number and Team.</p>
               
-              <form onSubmit={handleAddWhitelist} className="flex flex-col md:flex-row items-end gap-4">
-                <div className="flex-1 w-full">
+              <form onSubmit={handleAddWhitelist} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+                <div className="w-full">
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Google Email</label>
                   <input type="email" required value={wlEmail} onChange={e => setWlEmail(e.target.value)} placeholder="student@university.edu" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"/>
                 </div>
-                <div className="flex-1 w-full">
+                <div className="w-full">
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Roll Number</label>
                   <input type="text" required value={wlRoll} onChange={e => setWlRoll(e.target.value)} placeholder="23CSEAIML057" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"/>
                 </div>
-                <div className="flex-1 w-full">
+                <div className="w-full">
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Assigned Team</label>
                   <select required value={wlTeamId} onChange={e => setWlTeamId(e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
                     {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
                 </div>
-                <button type="submit" disabled={wlLoading} className="w-full md:w-auto px-6 py-2 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+                <div className="w-full">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Set Password</label>
+                  <input type="text" required value={wlPassword} onChange={e => setWlPassword(e.target.value)} placeholder="Initial Password" title="Password for Roll No login" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"/>
+                </div>
+                <button type="submit" disabled={wlLoading} className="w-full px-6 py-2 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors">
                   {wlLoading ? 'Saving...' : 'Add Student'}
                 </button>
               </form>
@@ -301,22 +313,42 @@ const AdminDashboard: React.FC = () => {
                       <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs">Email</th>
                       <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs">Roll Number</th>
                       <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs">Team</th>
+                      <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs">App Status</th>
                       <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {whitelist.map(entry => {
                       const teamName = teams.find(t => t.id === entry.team_id)?.name;
+                      const isJoined = !!entry.profiles;
                       return (
                         <tr key={entry.id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-6 py-4 font-medium text-slate-900">{entry.email}</td>
+                          <td className="px-6 py-4">
+                            <p className="font-medium text-slate-900">{entry.email}</p>
+                            <p className="text-xs text-slate-400">Pass: {entry.initial_password}</p>
+                          </td>
                           <td className="px-6 py-4 text-slate-600">{entry.roll_number}</td>
                           <td className="px-6 py-4">
                             <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
                               {teamName}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-right">
+                          <td className="px-6 py-4">
+                            {isJoined ? (
+                              <span className="inline-flex items-center text-emerald-600 font-medium">
+                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2 animate-pulse"></div> Joined
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 italic">Pending</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-right space-x-2">
+                            <button 
+                              className="inline-flex items-center p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
+                              title="Edit Entry"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
                             <button 
                               onClick={() => handleRemoveWhitelist(entry.id)}
                               className="inline-flex items-center p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-100"
