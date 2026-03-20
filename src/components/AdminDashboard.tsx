@@ -105,13 +105,13 @@ const AdminDashboard: React.FC = () => {
   const handleAddWhitelist = async (e: React.FormEvent) => {
     e.preventDefault();
     setWlLoading(true);
-    const { error } = await supabase.from('whitelisted_users').insert({
+    const { error } = await supabase.from('whitelisted_users').upsert({
       email: wlEmail,
       roll_number: wlRoll,
       team_id: wlTeamId,
       initial_password: wlPassword,
       mobile_number: wlMobile
-    });
+    }, { onConflict: 'email' });
     
     if (error) {
       alert(`Error saving to whitelist: ${error.message}`);
