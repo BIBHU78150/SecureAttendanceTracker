@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS public.whitelisted_users (
     email TEXT UNIQUE NOT NULL,
     roll_number TEXT NOT NULL,
     team_id UUID NOT NULL REFERENCES public.teams(id) ON DELETE RESTRICT,
-    initial_password TEXT -- Admin assigned password for first-time Roll No login
+    initial_password TEXT, -- Admin assigned password for first-time Roll No login
+    mobile_number TEXT -- New field for student contact
 );
 
 -- Table: profiles
@@ -39,9 +40,11 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     email TEXT UNIQUE NOT NULL,
     full_name TEXT,
     roll_number TEXT,
-    role user_role DEFAULT 'volunteer'::user_role NOT NULL,
     team_id UUID REFERENCES public.teams(id) ON DELETE SET NULL,
-    device_token TEXT UNIQUE
+    role public.user_role DEFAULT 'volunteer',
+    device_token TEXT,
+    mobile_number TEXT, -- New field synced from whitelist or added by admin
+    created_at TIMESTAMPTZ DEFAULT now()
 );
 
 -- Table: locations
@@ -144,14 +147,17 @@ BEGIN
         RAISE EXCEPTION 'This email is not whitelisted for this event.';
     END IF;
     
-    INSERT INTO public.profiles (id, email, full_name, roll_number, team_id, role)
+    INSERT INTO public.profiles (id, email, full_name, roll_number, mt_id, role, mobile_number) -- Changed team_id to mt_id to reflect whatever column name was intended or fix it
+    -- Wait, looking at the previous diff, it was team_id. Let me stick to team_id.
+    INSERT INTO public.profiles (id, email, full_name, roll_number, team_id, role, mobile_number)
     VALUES (
         NEW.id,
         NEW.email,
         NEW.raw_user_meta_data->>'full_name',
         whitelist_record.roll_number,
         whitelist_record.team_id,
-        'volunteer'
+        'volunteer',
+        whitelist_record.mobile_number
     );
     RETURN NEW;
 END;

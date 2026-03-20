@@ -18,7 +18,11 @@ const AdminDashboard: React.FC = () => {
   const [wlRoll, setWlRoll] = useState('');
   const [wlTeamId, setWlTeamId] = useState('');
   const [wlPassword, setWlPassword] = useState('');
+  const [wlMobile, setWlMobile] = useState('');
   const [wlLoading, setWlLoading] = useState(false);
+  
+  // Edit State
+  const [editingStudent, setEditingStudent] = useState<any>(null);
 
   useEffect(() => {
     fetchData();
@@ -38,7 +42,7 @@ const AdminDashboard: React.FC = () => {
       .from('whitelisted_users')
       .select(`
         *,
-        profiles:profiles(id, full_name, role)
+        profiles:profiles(id, full_name, role, mobile_number, device_token)
       `);
     if (wlData) setWhitelist(wlData);
 
@@ -48,7 +52,7 @@ const AdminDashboard: React.FC = () => {
       .from('attendance_logs')
       .select(`
         *,
-        profiles ( full_name, roll_number, team_id, device_token ),
+        profiles ( full_name, roll_number, team_id, device_token, mobile_number ),
         locations ( event_name )
       `)
       .eq('date', today);
@@ -64,6 +68,40 @@ const AdminDashboard: React.FC = () => {
     fetchData();
   };
 
+  const handleUpdateWhitelist = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStudent) return;
+    
+    setWlLoading(true);
+    const { error } = await supabase
+      .from('whitelisted_users')
+      .update({
+        email: editingStudent.email,
+        roll_number: editingStudent.roll_number,
+        team_id: editingStudent.team_id,
+        initial_password: editingStudent.initial_password,
+        mobile_number: editingStudent.mobile_number
+      })
+      .eq('id', editingStudent.id);
+      
+    // Also update profile if it exists
+    if (editingStudent.profiles && Array.isArray(editingStudent.profiles) ? editingStudent.profiles[0]?.id : editingStudent.profiles?.id) {
+       const profileId = Array.isArray(editingStudent.profiles) ? editingStudent.profiles[0].id : editingStudent.profiles.id;
+       await supabase.from('profiles').update({
+         mobile_number: editingStudent.mobile_number,
+         team_id: editingStudent.team_id
+       }).eq('id', profileId);
+    }
+
+    if (error) {
+      alert(`Error updating: ${error.message}`);
+    } else {
+      setEditingStudent(null);
+      fetchData();
+    }
+    setWlLoading(false);
+  };
+
   const handleAddWhitelist = async (e: React.FormEvent) => {
     e.preventDefault();
     setWlLoading(true);
@@ -71,7 +109,8 @@ const AdminDashboard: React.FC = () => {
       email: wlEmail,
       roll_number: wlRoll,
       team_id: wlTeamId,
-      initial_password: wlPassword
+      initial_password: wlPassword,
+      mobile_number: wlMobile
     });
     
     if (error) {
@@ -80,6 +119,7 @@ const AdminDashboard: React.FC = () => {
       setWlEmail('');
       setWlRoll('');
       setWlPassword('');
+      setWlMobile('');
       fetchData();
     }
     setWlLoading(false);
@@ -278,7 +318,7 @@ const AdminDashboard: React.FC = () => {
               </h2>
               <p className="text-sm text-slate-500 mb-4">Register an allowed student email to their Roll Number and Team.</p>
               
-              <form onSubmit={handleAddWhitelist} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+              <form onSubmit={handleAddWhitelist} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-end">
                 <div className="w-full">
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Google Email</label>
                   <input type="email" required value={wlEmail} onChange={e => setWlEmail(e.target.value)} placeholder="student@university.edu" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"/>
@@ -292,6 +332,10 @@ const AdminDashboard: React.FC = () => {
                   <select required value={wlTeamId} onChange={e => setWlTeamId(e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
                     {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
+                </div>
+                <div className="w-full">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Mobile Number</label>
+                  <input type="tel" value={wlMobile} onChange={e => setWlMobile(e.target.value)} placeholder="9876543210" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"/>
                 </div>
                 <div className="w-full">
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Set Password</label>
@@ -310,7 +354,7 @@ const AdminDashboard: React.FC = () => {
                 <table className="w-full text-left text-sm whitespace-nowrap">
                   <thead className="bg-slate-50 text-slate-500 sticky top-0">
                     <tr>
-                      <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs">Email</th>
+                      <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs">Email / Mobile</th>
                       <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs">Roll Number</th>
                       <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs">Team</th>
                       <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs">App Status</th>
@@ -319,13 +363,16 @@ const AdminDashboard: React.FC = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {whitelist.map(entry => {
-                      const teamName = teams.find(t => t.id === entry.team_id)?.name;
-                      const isJoined = !!entry.profiles;
+                      const teamId = entry.team_id;
+                      const teamName = teams.find(t => t.id === teamId)?.name || 'Unknown';
+                      const profile = Array.isArray(entry.profiles) ? entry.profiles[0] : entry.profiles;
+                      const isJoined = !!profile;
                       return (
                         <tr key={entry.id} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-6 py-4">
                             <p className="font-medium text-slate-900">{entry.email}</p>
-                            <p className="text-xs text-slate-400">Pass: {entry.initial_password}</p>
+                            <p className="text-xs text-slate-500">{entry.mobile_number || 'No mobile'}</p>
+                            <p className="text-[10px] text-slate-400">Pass: {entry.initial_password}</p>
                           </td>
                           <td className="px-6 py-4 text-slate-600">{entry.roll_number}</td>
                           <td className="px-6 py-4">
@@ -344,6 +391,7 @@ const AdminDashboard: React.FC = () => {
                           </td>
                           <td className="px-6 py-4 text-right space-x-2">
                             <button 
+                              onClick={() => setEditingStudent({...entry, profiles: profile})}
                               className="inline-flex items-center p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
                               title="Edit Entry"
                             >
@@ -362,7 +410,7 @@ const AdminDashboard: React.FC = () => {
                     })}
                     {whitelist.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
+                        <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
                           Whitelist is currently empty.
                         </td>
                       </tr>
@@ -370,6 +418,51 @@ const AdminDashboard: React.FC = () => {
                   </tbody>
                 </table>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Edit Modal */}
+        {editingStudent && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="text-xl font-bold text-slate-900">Edit Student Detail</h3>
+                <button onClick={() => setEditingStudent(null)} className="text-slate-400 font-bold hover:text-slate-600 h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors">×</button>
+              </div>
+              <form onSubmit={handleUpdateWhitelist} className="p-6 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Roll Number</label>
+                    <input type="text" required value={editingStudent.roll_number} onChange={e => setEditingStudent({...editingStudent, roll_number: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Mobile Number</label>
+                    <input type="tel" value={editingStudent.mobile_number || ''} onChange={e => setEditingStudent({...editingStudent, mobile_number: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"/>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Google Email</label>
+                  <input type="email" required value={editingStudent.email} onChange={e => setEditingStudent({...editingStudent, email: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"/>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Assigned Team</label>
+                  <select required value={editingStudent.team_id} onChange={e => setEditingStudent({...editingStudent, team_id: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Initial Password</label>
+                  <input type="text" required value={editingStudent.initial_password || ''} onChange={e => setEditingStudent({...editingStudent, initial_password: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"/>
+                </div>
+                
+                <div className="pt-4 flex gap-3">
+                  <button type="button" onClick={() => setEditingStudent(null)} className="flex-1 px-6 py-2 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50">Cancel</button>
+                  <button type="submit" disabled={wlLoading} className="flex-1 px-6 py-2 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 disabled:opacity-50">
+                    {wlLoading ? 'Updating...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
