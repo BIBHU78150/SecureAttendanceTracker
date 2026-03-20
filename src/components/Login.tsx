@@ -238,7 +238,7 @@ const Login: React.FC = () => {
                   disabled={authLoading}
                   className="w-full mt-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold py-3 rounded-xl shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:-translate-y-0.5 transition-all disabled:opacity-70 disabled:hover:translate-y-0"
                 >
-                  {authLoading ? 'Authenticating...' : 'Sign in with Roll Number'}
+                  {authLoading ? 'Verifying...' : 'Sign in with Roll Number'}
                 </button>
               </form>
             )}

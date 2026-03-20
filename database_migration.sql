@@ -139,10 +139,10 @@ BEGIN
     -- Check if user is in whitelist
     SELECT * INTO whitelist_record FROM public.whitelisted_users WHERE email = NEW.email;
     
-    -- If not found, and we want to enforce strict whitelisting, we could throw an error but
-    -- standard practice is to let frontend handle denying access or delete them here.
-    -- However, the PRD states "System checks if the Google email exists in the whitelisted_users table.
-    -- If no, deny access and sign out." usually done at auth attempt frontend side.
+    -- STRICT ENFORCEMENT: If not in whitelist, reject account creation
+    IF whitelist_record.id IS NULL THEN
+        RAISE EXCEPTION 'This email is not whitelisted for this event.';
+    END IF;
     
     INSERT INTO public.profiles (id, email, full_name, roll_number, team_id, role)
     VALUES (
@@ -151,7 +151,7 @@ BEGIN
         NEW.raw_user_meta_data->>'full_name',
         whitelist_record.roll_number,
         whitelist_record.team_id,
-        'volunteer' -- explicitly set just in case, though defaulting works
+        'volunteer'
     );
     RETURN NEW;
 END;
