@@ -78,9 +78,22 @@ const Login: React.FC = () => {
               console.error("SignUp Error:", signUpError.message);
               setVolError(`Final activation failed: ${signUpError.message}`);
             } else {
-              console.log("SignUp successful! User activated.");
-              // Sign up successful, Supabase usually logs them in automatically or asks for email verification
-              // If email verification is OFF, they are now logged in.
+              console.log("SignUp successful! Performing final login...");
+              // Now explicitly sign in to establish the session
+              const { error: finalLoginError } = await supabase.auth.signInWithPassword({
+                 email: mappedEmail,
+                 password: volPassword
+              });
+              if (finalLoginError) {
+                console.warn("Manual signin after signup failed (might need email verification):", finalLoginError.message);
+                if (finalLoginError.message.includes('Email not confirmed')) {
+                  setVolError('Activation successful! Please check your email to verify and then login.');
+                } else {
+                  setVolError(`Activation worked, but login failed: ${finalLoginError.message}`);
+                }
+              } else {
+                console.log("Final Login successful! Redirecting...");
+              }
             }
           } else {
             console.warn("Initial password did NOT match.");
