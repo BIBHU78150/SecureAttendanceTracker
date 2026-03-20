@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { LogIn, AlertCircle, Mail, Lock } from 'lucide-react';
+import { AlertCircle, Mail, Lock } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import logo from '../logo.png';
 
