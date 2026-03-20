@@ -73,21 +73,26 @@ const Login: React.FC = () => {
                 data: { full_name: `Student ${volRoll}` }
               }
             });
-
             if (signUpError) {
               console.error("SignUp Error:", signUpError.message);
               setVolError(`Final activation failed: ${signUpError.message}`);
             } else {
-              console.log("SignUp successful! Performing final login...");
+              console.log("SignUp successful! Waiting 1.5s for session sync...");
+              // 1.5-second delay to avoid race condition on new signups
+              await new Promise(resolve => setTimeout(resolve, 1500));
+              
+              console.log("Attempting final login...");
               // Now explicitly sign in to establish the session
               const { error: finalLoginError } = await supabase.auth.signInWithPassword({
                  email: mappedEmail,
                  password: volPassword
               });
               if (finalLoginError) {
-                console.warn("Manual signin after signup failed (might need email verification):", finalLoginError.message);
+                console.warn("Manual signin after signup failed:", finalLoginError.message);
                 if (finalLoginError.message.includes('Email not confirmed')) {
                   setVolError('Activation successful! Please check your email to verify and then login.');
+                } else if (finalLoginError.message.includes('Invalid login credentials')) {
+                  setVolError('Conflict detected: This email already has an account. Please ask your administrator to reset your account in Supabase Auth.');
                 } else {
                   setVolError(`Activation worked, but login failed: ${finalLoginError.message}`);
                 }
