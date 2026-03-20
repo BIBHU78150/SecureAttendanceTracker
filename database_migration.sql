@@ -72,16 +72,8 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.locations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance_logs ENABLE ROW LEVEL SECURITY;
 
--- Creating standard RLS Policies
--- Teams: Anyone can read
-CREATE POLICY "Teams are viewable by all users." ON public.teams FOR SELECT USING (true);
-
--- Whitelisted Users: Admins can read/write, volunteers can't
-CREATE POLICY "Admins can manage whitelisted users" ON public.whitelisted_users FOR ALL USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-);
-
 -- Helper function to check if a user is an admin without triggering RLS recursion
+-- Runs as SECURITY DEFINER to bypass RLS checks on the profiles table
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS boolean AS $$
 BEGIN
@@ -92,32 +84,49 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Creating standard RLS Policies
+-- Teams: Anyone can read
+DROP POLICY IF EXISTS "Teams are viewable by all users." ON public.teams;
+CREATE POLICY "Teams are viewable by all users." ON public.teams FOR SELECT USING (true);
+
+-- Whitelisted Users: Admins can read/write, volunteers can't
+DROP POLICY IF EXISTS "Admins can manage whitelisted users" ON public.whitelisted_users;
+CREATE POLICY "Admins can manage whitelisted users" ON public.whitelisted_users FOR ALL USING (public.is_admin());
+
 -- Profiles: Users can select/update their own; Admins can do all
+DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
 CREATE POLICY "Users can view their own profile" ON public.profiles FOR SELECT USING (
     id = auth.uid() OR public.is_admin()
 );
 
+DROP POLICY IF EXISTS "Users can update their own device_token" ON public.profiles;
 CREATE POLICY "Users can update their own device_token" ON public.profiles FOR UPDATE USING (
     id = auth.uid() OR public.is_admin()
 );
 
 -- Locations: Viewable by all, managed by admin
+DROP POLICY IF EXISTS "Locations viewable by everyone" ON public.locations;
 CREATE POLICY "Locations viewable by everyone" ON public.locations FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admins can manage locations" ON public.locations;
 CREATE POLICY "Admins can manage locations" ON public.locations FOR ALL USING (public.is_admin());
 
 -- Attendance Logs: Users insert/update their own logs, Admins can do all
+DROP POLICY IF EXISTS "Users can view own logs" ON public.attendance_logs;
 CREATE POLICY "Users can view own logs" ON public.attendance_logs FOR SELECT USING (
     user_id = auth.uid() OR public.is_admin()
 );
 
+DROP POLICY IF EXISTS "Users can insert own logs" ON public.attendance_logs;
 CREATE POLICY "Users can insert own logs" ON public.attendance_logs FOR INSERT WITH CHECK (
     user_id = auth.uid() OR public.is_admin()
 );
 
+DROP POLICY IF EXISTS "Users can update own logs" ON public.attendance_logs;
 CREATE POLICY "Users can update own logs" ON public.attendance_logs FOR UPDATE USING (
     user_id = auth.uid() OR public.is_admin()
 );
 
+DROP POLICY IF EXISTS "Admins can manage logs" ON public.attendance_logs;
 CREATE POLICY "Admins can manage logs" ON public.attendance_logs FOR ALL USING (public.is_admin());
 
 -- Creating the Auth Trigger for automatically populating Profile details
