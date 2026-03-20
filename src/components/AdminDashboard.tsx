@@ -73,11 +73,14 @@ const AdminDashboard: React.FC = () => {
     setLoading(false);
   };
 
-  const handleResetDevice = async (userId: string) => {
-    if (!window.confirm("Are you sure you want to reset this user's device token?")) return;
-    await supabase.from('profiles').update({ device_token: null }).eq('id', userId);
-    alert('Device token reset successfully. The student can now log in from a new device.');
-    fetchData();
+  const handleResetDevice = async (profileId: string) => {
+    if (!confirm('Are you sure you want to reset the device binding for this user?')) return;
+    const { error } = await supabase.from('profiles').update({ device_token: null }).eq('id', profileId);
+    if (error) alert(`Error: ${error.message}`);
+    else {
+      alert('Device reset successful.');
+      fetchData();
+    }
   };
 
   const handleUpdateWhitelist = async (e: React.FormEvent) => {
@@ -85,7 +88,7 @@ const AdminDashboard: React.FC = () => {
     if (!editingStudent) return;
     
     setWlLoading(true);
-    const { error } = await supabase
+    const { error: wlError } = await supabase
       .from('whitelisted_users')
       .update({
         email: editingStudent.email,
@@ -95,19 +98,22 @@ const AdminDashboard: React.FC = () => {
         mobile_number: editingStudent.mobile_number
       })
       .eq('id', editingStudent.id);
-      
-    // Also update profile if it exists
-    if (editingStudent.profiles && Array.isArray(editingStudent.profiles) ? editingStudent.profiles[0]?.id : editingStudent.profiles?.id) {
-       const profileId = Array.isArray(editingStudent.profiles) ? editingStudent.profiles[0].id : editingStudent.profiles.id;
-       await supabase.from('profiles').update({
-         mobile_number: editingStudent.mobile_number,
-         team_id: editingStudent.team_id
-       }).eq('id', profileId);
-    }
 
-    if (error) {
-      alert(`Error updating: ${error.message}`);
+    if (wlError) {
+      alert(`Error updating whitelist: ${wlError.message}`);
     } else {
+      const profile = Array.isArray(editingStudent.profiles) ? editingStudent.profiles[0] : editingStudent.profiles;
+      if (profile) {
+        await supabase
+          .from('profiles')
+          .update({
+            email: editingStudent.email,
+            roll_number: editingStudent.roll_number,
+            team_id: editingStudent.team_id,
+            mobile_number: editingStudent.mobile_number
+          })
+          .eq('id', profile.id);
+      }
       setEditingStudent(null);
       fetchData();
     }
@@ -402,6 +408,15 @@ const AdminDashboard: React.FC = () => {
                             )}
                           </td>
                           <td className="px-6 py-4 text-right space-x-2">
+                            {isJoined && (
+                              <button 
+                                onClick={() => handleResetDevice(profile.id)}
+                                className="inline-flex items-center p-2 text-amber-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors border border-transparent hover:border-amber-100"
+                                title="Reset Device Binding"
+                              >
+                                <RefreshCw className="w-4 h-4" />
+                              </button>
+                            )}
                             <button 
                               onClick={() => setEditingStudent({...entry, profiles: profile})}
                               className="inline-flex items-center p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
