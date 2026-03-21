@@ -31,12 +31,14 @@ CREATE TABLE IF NOT EXISTS public.whitelisted_users (
     roll_number TEXT NOT NULL,
     team_id UUID NOT NULL REFERENCES public.teams(id) ON DELETE RESTRICT,
     initial_password TEXT, -- Admin assigned password for first-time Roll No login
-    mobile_number TEXT -- New field for student contact
+    mobile_number TEXT, -- New field for student contact
+    full_name TEXT -- New field for student display name
 );
 
 -- Ensure columns exist for existing tables
 ALTER TABLE public.whitelisted_users ADD COLUMN IF NOT EXISTS initial_password TEXT;
 ALTER TABLE public.whitelisted_users ADD COLUMN IF NOT EXISTS mobile_number TEXT;
+ALTER TABLE public.whitelisted_users ADD COLUMN IF NOT EXISTS full_name TEXT;
 
 -- Table: profiles
 CREATE TABLE IF NOT EXISTS public.profiles (
@@ -158,7 +160,7 @@ BEGIN
     VALUES (
         NEW.id,
         NEW.email,
-        NEW.raw_user_meta_data->>'full_name',
+        COALESCE(NEW.raw_user_meta_data->>'full_name', whitelist_record.full_name, 'Student ' || whitelist_record.roll_number),
         whitelist_record.roll_number,
         whitelist_record.team_id,
         'volunteer',
