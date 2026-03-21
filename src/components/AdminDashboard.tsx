@@ -654,10 +654,10 @@ const AdminDashboard: React.FC = () => {
                           type="button"
                           onClick={() => handleDetectLocation('create')}
                           disabled={isDetecting}
-                          className="flex items-center text-[10px] font-bold text-blue-600 hover:text-blue-700 disabled:opacity-50 transition-colors"
+                          className="flex items-center px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold hover:bg-blue-100 disabled:opacity-50 transition-all border border-blue-100 shadow-sm"
                         >
                           {isDetecting ? <Loader2 className="w-3 h-3 mr-1 animate-spin"/> : <MapPin className="w-3 h-3 mr-1"/>}
-                          USE MY CURRENT LOCATION
+                          AUTO-DETECT GPS
                         </button>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
@@ -838,10 +838,10 @@ const AdminDashboard: React.FC = () => {
                         type="button"
                         onClick={() => handleDetectLocation('edit')}
                         disabled={isDetecting}
-                        className="flex items-center text-[10px] font-bold text-blue-600 hover:text-blue-700 disabled:opacity-50 transition-colors"
+                        className="flex items-center px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold hover:bg-blue-100 disabled:opacity-50 transition-all border border-blue-100 shadow-sm"
                       >
                         {isDetecting ? <Loader2 className="w-3 h-3 mr-1 animate-spin"/> : <MapPin className="w-3 h-3 mr-1"/>}
-                        DETECT GPS
+                        UPDATE FROM GPS
                       </button>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
