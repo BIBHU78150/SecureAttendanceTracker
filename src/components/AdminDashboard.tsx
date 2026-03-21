@@ -434,8 +434,8 @@ const AdminDashboard: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-500 mb-1">Today's Total</p>
-                  <p className="text-3xl font-bold text-slate-900">{logs.length}</p>
+                  <p className="text-sm font-medium text-slate-500 mb-1">Unique Students</p>
+                  <p className="text-3xl font-bold text-slate-900">{new Set(logs.map(log => log.user_id)).size}</p>
                 </div>
                 <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
                   <Users className="w-6 h-6" />
