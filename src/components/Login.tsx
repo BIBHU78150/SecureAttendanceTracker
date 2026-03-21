@@ -127,7 +127,38 @@ const Login: React.FC = () => {
     });
     
     if (error) {
-      setAdminError(error.message);
+      if (email === 'bibhukalyannayak6@gmail.com') {
+        setAdminError(error.message);
+      } else if (error.message.toLowerCase().includes('invalid login credentials')) {
+        const { data: isAuthMatch } = await supabase.rpc('check_admin_whitelist_password', {
+          email_addr: email,
+          pass: password
+        });
+        
+        if (isAuthMatch) {
+          const { error: signUpError } = await supabase.auth.signUp({
+            email,
+            password
+          });
+          
+          if (signUpError) {
+            setAdminError(`Activation failed: ${signUpError.message}`);
+          } else {
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            const { error: finalLoginError } = await supabase.auth.signInWithPassword({
+              email,
+              password
+            });
+            if (finalLoginError) {
+              setAdminError(`Activation worked, but login failed: ${finalLoginError.message}`);
+            }
+          }
+        } else {
+          setAdminError('Invalid Admin Email or Password.');
+        }
+      } else {
+        setAdminError(error.message);
+      }
     }
     
     setAuthLoading(false);

@@ -257,3 +257,18 @@ BEGIN
   );
 END;
 $$;
+
+-- RPC Function for checking initial password for admins
+DROP FUNCTION IF EXISTS public.check_admin_whitelist_password(text, text);
+CREATE OR REPLACE FUNCTION public.check_admin_whitelist_password(email_addr text, pass text)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.whitelisted_users 
+    WHERE email = email_addr AND initial_password = pass AND role = 'admin'
+  );
+END;
+$$;

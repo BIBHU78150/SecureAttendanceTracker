@@ -37,6 +37,7 @@ const AdminDashboard: React.FC = () => {
   const [whitelistedAdmins, setWhitelistedAdmins] = useState<any[]>([]);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPass, setAdminPass] = useState('');
+  const [adminName, setAdminName] = useState('');
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
 
@@ -72,7 +73,7 @@ const AdminDashboard: React.FC = () => {
       roll_number: 'ADMIN',
       team_id: teams[0].id,
       role: 'admin',
-      full_name: 'Admin User'
+      full_name: adminName || 'Administrator'
     }]);
 
     if(error) {
@@ -80,6 +81,7 @@ const AdminDashboard: React.FC = () => {
     } else {
       setAdminEmail('');
       setAdminPass('');
+      setAdminName('');
       fetchAdmins();
     }
   };
@@ -707,13 +709,17 @@ const AdminDashboard: React.FC = () => {
                 </div>
                 <p className="text-sm text-slate-500 mb-6 font-medium">Add secondary administrators who can manage attendance and live events.</p>
                 
-                <form onSubmit={handleAddAdmin} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end bg-white p-4 rounded-2xl border border-slate-100">
+                <form onSubmit={handleAddAdmin} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                  <div className="w-full">
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Full Name</label>
+                    <input type="text" required value={adminName} onChange={e => setAdminName(e.target.value)} placeholder="Admin Name" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none text-sm"/>
+                  </div>
                   <div className="w-full">
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Admin Email</label>
                     <input type="email" required value={adminEmail} onChange={e => setAdminEmail(e.target.value)} placeholder="admin@example.com" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none text-sm"/>
                   </div>
                   <div className="w-full">
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Login Password</label>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Initial Password</label>
                     <input type="password" required value={adminPass} onChange={e => setAdminPass(e.target.value)} placeholder="••••••••" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none text-sm"/>
                   </div>
                   <button type="submit" className="w-full bg-red-600 text-white font-bold py-2.5 px-4 rounded-xl hover:bg-red-700 transition-all flex items-center justify-center shadow-lg shadow-red-100">
