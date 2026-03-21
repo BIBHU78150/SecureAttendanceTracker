@@ -11,7 +11,9 @@ const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [filterTeam, setFilterTeam] = useState('all');
   
-  const [activeTab, setActiveTab] = useState<'attendance' | 'whitelist'>('attendance');
+  const [activeTab, setActiveTab] = useState<'attendance' | 'whitelist' | 'events'>('attendance');
+  const [locations, setLocations] = useState<any[]>([]);
+  const [eventTeams, setEventTeams] = useState<any[]>([]);
   
   // Whitelist Form state
   const [wlEmail, setWlEmail] = useState('');
@@ -24,6 +26,14 @@ const AdminDashboard: React.FC = () => {
   
   // Edit State
   const [editingStudent, setEditingStudent] = useState<any>(null);
+  const [editingEvent, setEditingEvent] = useState<any>(null);
+
+  // New Event Form state
+  const [evName, setEvName] = useState('');
+  const [evLat, setEvLat] = useState('');
+  const [evLng, setEvLng] = useState('');
+  const [evRadius, setEvRadius] = useState('50');
+  const [evTeams, setEvTeams] = useState<string[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -71,6 +81,14 @@ const AdminDashboard: React.FC = () => {
       
     if (logsError) console.error("Error fetching logs:", logsError.message);
     if (logsData) setLogs(logsData);
+
+    // Fetch locations and event_teams
+    const { data: locData } = await supabase.from('locations').select('*');
+    if (locData) setLocations(locData);
+
+    const { data: etData } = await supabase.from('event_teams').select('*');
+    if (etData) setEventTeams(etData);
+
     setLoading(false);
   };
 
@@ -121,6 +139,89 @@ const AdminDashboard: React.FC = () => {
       fetchData();
     }
     setWlLoading(false);
+  };
+
+  const handleAddEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    // 1. Create location
+    const { data: location, error: locError } = await supabase
+      .from('locations')
+      .insert({
+        event_name: evName,
+        target_lat: parseFloat(evLat),
+        target_lng: parseFloat(evLng),
+        radius_meters: parseInt(evRadius),
+        is_active: true
+      })
+      .select()
+      .single();
+
+    if (locError) {
+      alert(`Error creating event: ${locError.message}`);
+    } else if (location && evTeams.length > 0) {
+      // 2. Assign teams
+      const assignments = evTeams.map(teamId => ({
+        location_id: location.id,
+        team_id: teamId
+      }));
+      const { error: etError } = await supabase.from('event_teams').insert(assignments);
+      if (etError) alert(`Error assigning teams: ${etError.message}`);
+    }
+
+    if (!locError) {
+      setEvName('');
+      setEvLat('');
+      setEvLng('');
+      setEvRadius('50');
+      setEvTeams([]);
+      fetchData();
+    }
+    setLoading(false);
+  };
+
+  const handleDeleteEvent = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this event? All attendance logs for this event will remain, but the location will be removed.')) return;
+    const { error } = await supabase.from('locations').delete().eq('id', id);
+    if (error) alert(`Error: ${error.message}`);
+    else fetchData();
+  };
+
+  const handleUpdateEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEvent) return;
+    setLoading(true);
+
+    const { error: locError } = await supabase
+      .from('locations')
+      .update({
+        event_name: editingEvent.event_name,
+        target_lat: parseFloat(editingEvent.target_lat),
+        target_lng: parseFloat(editingEvent.target_lng),
+        radius_meters: parseInt(editingEvent.radius_meters),
+        is_active: editingEvent.is_active
+      })
+      .eq('id', editingEvent.id);
+
+    if (locError) {
+      alert(`Error updating event: ${locError.message}`);
+    } else {
+      // Sync teams: delete and re-insert
+      await supabase.from('event_teams').delete().eq('location_id', editingEvent.id);
+      
+      if (editingEvent.team_ids && editingEvent.team_ids.length > 0) {
+        const assignments = editingEvent.team_ids.map((tid: string) => ({
+          location_id: editingEvent.id,
+          team_id: tid
+        }));
+        await supabase.from('event_teams').insert(assignments);
+      }
+      
+      setEditingEvent(null);
+      fetchData();
+    }
+    setLoading(false);
   };
 
   const handleAddWhitelist = async (e: React.FormEvent) => {
@@ -210,9 +311,15 @@ const AdminDashboard: React.FC = () => {
           >
             Whitelist Management
           </button>
+          <button 
+            onClick={() => setActiveTab('events')} 
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'events' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            Events Management
+          </button>
         </div>
 
-        {activeTab === 'attendance' ? (
+        {activeTab === 'attendance' && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
@@ -333,7 +440,9 @@ const AdminDashboard: React.FC = () => {
               </div>
             </div>
           </>
-        ) : (
+        )}
+
+        {activeTab === 'whitelist' && (
           <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="p-6 border-b border-slate-100 bg-slate-50/50">
               <h2 className="text-lg font-bold text-slate-900 mb-1 flex items-center">
@@ -462,7 +571,127 @@ const AdminDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* Edit Modal */}
+        {activeTab === 'events' && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom duration-500">
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                <h2 className="text-lg font-bold text-slate-900 mb-1 flex items-center">
+                  <Calendar className="w-5 h-5 mr-2 text-blue-500"/> Create New Event
+                </h2>
+                <p className="text-sm text-slate-500 mb-6">Define a geofenced area and assign teams that can mark attendance there.</p>
+                
+                <form onSubmit={handleAddEvent} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Event Name</label>
+                      <input type="text" required value={evName} onChange={e => setEvName(e.target.value)} placeholder="Annual Sports Meet" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"/>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Latitude</label>
+                      <input type="number" step="any" required value={evLat} onChange={e => setEvLat(e.target.value)} placeholder="20.1234" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"/>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Longitude</label>
+                      <input type="number" step="any" required value={evLng} onChange={e => setEvLng(e.target.value)} placeholder="85.5678" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"/>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Radius (meters)</label>
+                      <input type="number" required value={evRadius} onChange={e => setEvRadius(e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"/>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Assign Access to Groups (Teams)</label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                      {teams.map(team => (
+                        <label key={team.id} className={`flex items-center p-3 rounded-xl border cursor-pointer transition-all ${evTeams.includes(team.id) ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm' : 'bg-slate-50 border-slate-100 text-slate-600 hover:bg-slate-100'}`}>
+                          <input 
+                            type="checkbox" 
+                            className="hidden" 
+                            checked={evTeams.includes(team.id)} 
+                            onChange={(e) => {
+                              if (e.target.checked) setEvTeams([...evTeams, team.id]);
+                              else setEvTeams(evTeams.filter(id => id !== team.id));
+                            }}
+                          />
+                          <span className="text-xs font-medium truncate">{team.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button type="submit" disabled={loading} className="px-8 py-2 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-lg shadow-blue-200">
+                      {loading ? 'Creating...' : 'Create Event'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm whitespace-nowrap">
+                  <thead className="bg-slate-50 text-slate-500">
+                    <tr>
+                      <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs">Event Name</th>
+                      <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs">Geofence (Lat, Lng, Rad)</th>
+                      <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs">Assigned Groups</th>
+                      <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {locations.map(loc => {
+                      const assignedTeamIds = eventTeams.filter(et => et.location_id === loc.id).map(et => et.team_id);
+                      const assignedTeamNames = teams.filter(t => assignedTeamIds.includes(t.id)).map(t => t.name);
+                      
+                      return (
+                        <tr key={loc.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-6 py-4">
+                            <p className="font-bold text-slate-900">{loc.event_name}</p>
+                          </td>
+                          <td className="px-6 py-4 text-slate-600">
+                            {loc.target_lat.toFixed(4)}, {loc.target_lng.toFixed(4)} ({loc.radius_meters}m)
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-wrap gap-1">
+                              {assignedTeamNames.length > 0 ? assignedTeamNames.map(name => (
+                                <span key={name} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-medium border border-slate-200">
+                                  {name}
+                                </span>
+                              )) : (
+                                <span className="text-rose-400 italic text-xs">No groups assigned</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right flex justify-end gap-2">
+                            <button 
+                              onClick={() => {
+                                const assignedTeamIds = eventTeams.filter(et => et.location_id === loc.id).map(et => et.team_id);
+                                setEditingEvent({ ...loc, team_ids: assignedTeamIds });
+                              }}
+                              className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Edit Event"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteEvent(loc.id)}
+                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                              title="Delete Event"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Student Modal */}
         {editingStudent && (
           <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -504,6 +733,68 @@ const AdminDashboard: React.FC = () => {
                   <button type="button" onClick={() => setEditingStudent(null)} className="flex-1 px-6 py-2 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50">Cancel</button>
                   <button type="submit" disabled={wlLoading} className="flex-1 px-6 py-2 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 disabled:opacity-50">
                     {wlLoading ? 'Updating...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Event Modal */}
+        {editingEvent && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="text-xl font-bold text-slate-900">Edit Event</h3>
+                <button onClick={() => setEditingEvent(null)} className="text-slate-400 font-bold hover:text-slate-600 h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors">×</button>
+              </div>
+              <form onSubmit={handleUpdateEvent} className="p-6 space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Event Name</label>
+                    <input type="text" required value={editingEvent.event_name} onChange={e => setEditingEvent({...editingEvent, event_name: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Radius (m)</label>
+                    <input type="number" required value={editingEvent.radius_meters} onChange={e => setEditingEvent({...editingEvent, radius_meters: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"/>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Latitude</label>
+                    <input type="number" step="any" required value={editingEvent.target_lat} onChange={e => setEditingEvent({...editingEvent, target_lat: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Longitude</label>
+                    <input type="number" step="any" required value={editingEvent.target_lng} onChange={e => setEditingEvent({...editingEvent, target_lng: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"/>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Assign Access to Groups (Teams)</label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {teams.map(team => (
+                      <label key={team.id} className={`flex items-center p-2 rounded-lg border cursor-pointer text-xs transition-all ${editingEvent.team_ids?.includes(team.id) ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-slate-50 border-slate-100 text-slate-600'}`}>
+                        <input 
+                          type="checkbox" 
+                          className="hidden" 
+                          checked={editingEvent.team_ids?.includes(team.id)} 
+                          onChange={(e) => {
+                            const currentTeams = editingEvent.team_ids || [];
+                            if (e.target.checked) setEditingEvent({...editingEvent, team_ids: [...currentTeams, team.id]});
+                            else setEditingEvent({...editingEvent, team_ids: currentTeams.filter((id: string) => id !== team.id)});
+                          }}
+                        />
+                        <span className="truncate">{team.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="pt-4 flex gap-3">
+                  <button type="button" onClick={() => setEditingEvent(null)} className="flex-1 px-6 py-2 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50">Cancel</button>
+                  <button type="submit" disabled={loading} className="flex-1 px-6 py-2 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 disabled:opacity-50">
+                    {loading ? 'Updating...' : 'Save Changes'}
                   </button>
                 </div>
               </form>

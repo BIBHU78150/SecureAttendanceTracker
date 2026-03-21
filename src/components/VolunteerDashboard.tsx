@@ -6,6 +6,7 @@ import { MapPin, CheckCircle, LogOut, ShieldAlert } from 'lucide-react';
 
 const VolunteerDashboard: React.FC = () => {
   const { profile, signOut } = useAuth();
+  const [locations, setLocations] = useState<any[]>([]);
   const [activeLocation, setActiveLocation] = useState<any>(null);
   const [activeLog, setActiveLog] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -18,22 +19,33 @@ const VolunteerDashboard: React.FC = () => {
 
   const fetchStatus = async () => {
     setLoading(true);
-    // 1. Get today's active location 
-    // In a real app we might filter by date, but lets assume there's one active event location
-    const { data: loc } = await supabase.from('locations').select('*').eq('is_active', true).single();
-    if (loc) {
-      setActiveLocation(loc);
+    // 1. Get all active locations assigned to my team (filtered by RLS)
+    const { data: locs, error } = await supabase.from('locations')
+      .select('*')
+      .eq('is_active', true);
+    
+    if (locs && locs.length > 0) {
+      setLocations(locs);
       
-      // 2. See if the user already punched in today for this event
+      // Auto-select first one or keep current if it still exists
+      const current = activeLocation ? locs.find(l => l.id === activeLocation.id) : locs[0];
+      const selected = current || locs[0];
+      setActiveLocation(selected);
+      
+      // 2. See if the user already punched in today for this specific event
       const { data: log } = await supabase
         .from('attendance_logs')
         .select('*')
         .eq('user_id', profile?.id)
-        .eq('location_id', loc.id)
+        .eq('location_id', selected.id)
         .eq('date', new Date().toISOString().split('T')[0])
         .maybeSingle();
       
       setActiveLog(log);
+    } else {
+      setLocations([]);
+      setActiveLocation(null);
+      setActiveLog(null);
     }
     setLoading(false);
   };
@@ -122,7 +134,7 @@ const VolunteerDashboard: React.FC = () => {
         ) : (
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
-              <div className="flex items-start justify-between mb-8">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                 <div>
                   <div className="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-xs font-semibold mb-3 border border-blue-100">
                     <span className="w-2 h-2 rounded-full bg-blue-500 mr-2 animate-pulse"></span>
@@ -130,6 +142,34 @@ const VolunteerDashboard: React.FC = () => {
                   </div>
                   <h1 className="text-2xl font-bold text-slate-900">{activeLocation.event_name}</h1>
                 </div>
+
+                {locations.length > 1 && (
+                  <div className="min-w-[200px]">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">Switch Event</label>
+                    <select 
+                      value={activeLocation.id}
+                      onChange={(e) => {
+                        const loc = locations.find(l => l.id === e.target.value);
+                        setActiveLocation(loc);
+                        // Trigger log fetch for this new selection
+                        const fetchLog = async () => {
+                          const { data: log } = await supabase
+                            .from('attendance_logs')
+                            .select('*')
+                            .eq('user_id', profile?.id)
+                            .eq('location_id', loc.id)
+                            .eq('date', new Date().toISOString().split('T')[0])
+                            .maybeSingle();
+                          setActiveLog(log);
+                        };
+                        fetchLog();
+                      }}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                      {locations.map(l => <option key={l.id} value={l.id}>{l.event_name}</option>)}
+                    </select>
+                  </div>
+                )}
               </div>
 
               {geoError && (

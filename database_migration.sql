@@ -66,6 +66,13 @@ CREATE TABLE IF NOT EXISTS public.locations (
     is_active BOOLEAN DEFAULT true NOT NULL
 );
 
+-- Table: event_teams (Join table for Event-Team assignment)
+CREATE TABLE IF NOT EXISTS public.event_teams (
+    location_id UUID REFERENCES public.locations(id) ON DELETE CASCADE,
+    team_id UUID REFERENCES public.teams(id) ON DELETE CASCADE,
+    PRIMARY KEY (location_id, team_id)
+);
+
 -- Table: attendance_logs
 CREATE TABLE IF NOT EXISTS public.attendance_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -83,6 +90,7 @@ ALTER TABLE public.teams ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.whitelisted_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.locations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.event_teams ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance_logs ENABLE ROW LEVEL SECURITY;
 
 -- Helper function to check if a user is an admin without triggering RLS recursion
@@ -117,11 +125,26 @@ CREATE POLICY "Users can update their own device_token" ON public.profiles FOR U
     id = auth.uid() OR public.is_admin()
 );
 
--- Locations: Viewable by all, managed by admin
-DROP POLICY IF EXISTS "Locations viewable by everyone" ON public.locations;
-CREATE POLICY "Locations viewable by everyone" ON public.locations FOR SELECT USING (true);
+-- Locations: Viewable by assigned teams, managed by admin
+DROP POLICY IF EXISTS "Locations viewable by assigned users" ON public.locations;
+CREATE POLICY "Locations viewable by assigned users" ON public.locations FOR SELECT USING (
+    public.is_admin() OR 
+    EXISTS (
+        SELECT 1 FROM public.event_teams et
+        JOIN public.profiles p ON p.team_id = et.team_id
+        WHERE et.location_id = public.locations.id AND p.id = auth.uid()
+    )
+);
+
 DROP POLICY IF EXISTS "Admins can manage locations" ON public.locations;
 CREATE POLICY "Admins can manage locations" ON public.locations FOR ALL USING (public.is_admin());
+
+-- Event Teams: Managed by admin, viewable by all (for UI joining)
+DROP POLICY IF EXISTS "Admins can manage event assignments" ON public.event_teams;
+CREATE POLICY "Admins can manage event assignments" ON public.event_teams FOR ALL USING (public.is_admin());
+
+DROP POLICY IF EXISTS "Event assignments are viewable by all" ON public.event_teams;
+CREATE POLICY "Event assignments are viewable by all" ON public.event_teams FOR SELECT USING (true);
 
 -- Attendance Logs: Users insert/update their own logs, Admins can do all
 DROP POLICY IF EXISTS "Users can view own logs" ON public.attendance_logs;
