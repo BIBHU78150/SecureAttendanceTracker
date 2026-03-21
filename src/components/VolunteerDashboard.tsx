@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { isUserWithinGeofence } from '../utils/geolocation';
+import { getLocalDateString } from '../utils/dateUtils';
 import { MapPin, LogOut, ShieldAlert } from 'lucide-react';
 
 const VolunteerDashboard: React.FC = () => {
@@ -20,7 +21,7 @@ const VolunteerDashboard: React.FC = () => {
 
   const fetchStatus = async () => {
     setLoading(true);
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
     
     // 1. Get all active locations assigned to my team (filtered by RLS)
     const { data: locs } = await supabase.from('locations')
@@ -42,7 +43,7 @@ const VolunteerDashboard: React.FC = () => {
         .select('*')
         .eq('user_id', profile?.id)
         .eq('location_id', selected.id)
-        .eq('date', new Date().toISOString().split('T')[0])
+        .eq('date', getLocalDateString())
         .order('punch_in_time', { ascending: false });
       
       setTodayLogs(logsData || []);
@@ -88,7 +89,7 @@ const VolunteerDashboard: React.FC = () => {
             await supabase.from('attendance_logs').insert({
               user_id: profile?.id,
               location_id: activeLocation.id,
-              date: new Date().toISOString().split('T')[0],
+              date: getLocalDateString(),
               status: 'Present'
             });
           } else {
@@ -177,7 +178,7 @@ const VolunteerDashboard: React.FC = () => {
                         setActiveLocation(loc);
                         // Trigger log fetch for this new selection
                         const fetchLog = async () => {
-                          const today = new Date().toISOString().split('T')[0];
+                          const today = getLocalDateString();
                           const { data: logsData } = await supabase
                             .from('attendance_logs')
                             .select('*')

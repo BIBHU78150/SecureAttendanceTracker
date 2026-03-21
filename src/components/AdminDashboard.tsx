@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { getLocalDateString } from '../utils/dateUtils';
 import { Users, Calendar, Download, RefreshCw, Shield, Edit, Search, UserPlus, Trash2, MapPin, Loader2, ShieldAlert } from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {
@@ -33,9 +34,9 @@ const AdminDashboard: React.FC = () => {
   const [evLat, setEvLat] = useState('');
   const [evLng, setEvLng] = useState('');
   const [evRadius, setEvRadius] = useState('50');
-  const [evStartDate, setEvStartDate] = useState(new Date().toISOString().split('T')[0]);
-  const [evEndDate, setEvEndDate] = useState(new Date().toISOString().split('T')[0]);
-  const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [evStartDate, setEvStartDate] = useState(getLocalDateString());
+  const [evEndDate, setEvEndDate] = useState(getLocalDateString());
+  const [attendanceDate, setAttendanceDate] = useState(getLocalDateString());
   const [evTeams, setEvTeams] = useState<string[]>([]);
   const [whitelistedAdmins, setWhitelistedAdmins] = useState<any[]>([]);
   const [adminEmail, setAdminEmail] = useState('');
@@ -256,8 +257,8 @@ const AdminDashboard: React.FC = () => {
       setEvLat('');
       setEvLng('');
       setEvRadius('50');
-      setEvStartDate(new Date().toISOString().split('T')[0]);
-      setEvEndDate(new Date().toISOString().split('T')[0]);
+      setEvStartDate(getLocalDateString());
+      setEvEndDate(getLocalDateString());
       setEvTeams([]);
       fetchData();
     }
@@ -359,7 +360,7 @@ const AdminDashboard: React.FC = () => {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `attendance_report_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `attendance_report_${getLocalDateString()}.csv`;
     link.click();
   };
 
