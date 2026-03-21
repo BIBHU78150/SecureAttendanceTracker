@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Users, Calendar, Download, RefreshCw, Shield, Edit, Search, UserPlus, Trash2 } from 'lucide-react';
+import { Users, Calendar, Download, RefreshCw, Shield, Edit, Search, UserPlus, Trash2, MapPin, Loader2 } from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {
   const { signOut } = useAuth();
@@ -34,10 +34,41 @@ const AdminDashboard: React.FC = () => {
   const [evLng, setEvLng] = useState('');
   const [evRadius, setEvRadius] = useState('50');
   const [evTeams, setEvTeams] = useState<string[]>([]);
+  const [isDetecting, setIsDetecting] = useState(false);
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  const handleDetectLocation = (target: 'create' | 'edit') => {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser");
+      return;
+    }
+
+    setIsDetecting(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        if (target === 'create') {
+          setEvLat(latitude.toString());
+          setEvLng(longitude.toString());
+        } else if (editingEvent) {
+          setEditingEvent({
+            ...editingEvent,
+            target_lat: latitude.toString(),
+            target_lng: longitude.toString()
+          });
+        }
+        setIsDetecting(false);
+      },
+      (error) => {
+        alert(`Location error: ${error.message}`);
+        setIsDetecting(false);
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+    );
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -616,13 +647,23 @@ const AdminDashboard: React.FC = () => {
                       <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Event Name</label>
                       <input type="text" required value={evName} onChange={e => setEvName(e.target.value)} placeholder="Annual Sports Meet" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"/>
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Latitude</label>
-                      <input type="number" step="any" required value={evLat} onChange={e => setEvLat(e.target.value)} placeholder="20.1234" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"/>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Longitude</label>
-                      <input type="number" step="any" required value={evLng} onChange={e => setEvLng(e.target.value)} placeholder="85.5678" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"/>
+                    <div className="md:col-span-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Coordinates</label>
+                        <button 
+                          type="button"
+                          onClick={() => handleDetectLocation('create')}
+                          disabled={isDetecting}
+                          className="flex items-center text-[10px] font-bold text-blue-600 hover:text-blue-700 disabled:opacity-50 transition-colors"
+                        >
+                          {isDetecting ? <Loader2 className="w-3 h-3 mr-1 animate-spin"/> : <MapPin className="w-3 h-3 mr-1"/>}
+                          USE MY CURRENT LOCATION
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <input type="number" step="any" required value={evLat} onChange={e => setEvLat(e.target.value)} placeholder="Latitude" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"/>
+                        <input type="number" step="any" required value={evLng} onChange={e => setEvLng(e.target.value)} placeholder="Longitude" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"/>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Radius (meters)</label>
@@ -789,14 +830,24 @@ const AdminDashboard: React.FC = () => {
                     <input type="number" required value={editingEvent.radius_meters} onChange={e => setEditingEvent({...editingEvent, radius_meters: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"/>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Latitude</label>
-                    <input type="number" step="any" required value={editingEvent.target_lat} onChange={e => setEditingEvent({...editingEvent, target_lat: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"/>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Longitude</label>
-                    <input type="number" step="any" required value={editingEvent.target_lng} onChange={e => setEditingEvent({...editingEvent, target_lng: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"/>
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Event Location (Coordinates)</label>
+                      <button 
+                        type="button"
+                        onClick={() => handleDetectLocation('edit')}
+                        disabled={isDetecting}
+                        className="flex items-center text-[10px] font-bold text-blue-600 hover:text-blue-700 disabled:opacity-50 transition-colors"
+                      >
+                        {isDetecting ? <Loader2 className="w-3 h-3 mr-1 animate-spin"/> : <MapPin className="w-3 h-3 mr-1"/>}
+                        DETECT GPS
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <input type="number" step="any" required value={editingEvent.target_lat} onChange={e => setEditingEvent({...editingEvent, target_lat: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-white"/>
+                      <input type="number" step="any" required value={editingEvent.target_lng} onChange={e => setEditingEvent({...editingEvent, target_lng: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-white"/>
+                    </div>
                   </div>
                 </div>
 
