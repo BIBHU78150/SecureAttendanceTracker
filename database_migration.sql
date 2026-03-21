@@ -32,8 +32,12 @@ CREATE TABLE IF NOT EXISTS public.whitelisted_users (
     team_id UUID NOT NULL REFERENCES public.teams(id) ON DELETE RESTRICT,
     initial_password TEXT, -- Admin assigned password for first-time Roll No login
     mobile_number TEXT, -- New field for student contact
-    full_name TEXT -- New field for student display name
+    full_name TEXT, -- New field for student display name
+    role public.user_role DEFAULT 'volunteer' NOT NULL
 );
+
+-- Ensure columns exist for existing tables
+ALTER TABLE public.whitelisted_users ADD COLUMN IF NOT EXISTS role public.user_role DEFAULT 'volunteer' NOT NULL;
 
 -- Ensure columns exist for existing tables
 ALTER TABLE public.whitelisted_users ADD COLUMN IF NOT EXISTS initial_password TEXT;
@@ -48,10 +52,13 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     roll_number TEXT,
     team_id UUID REFERENCES public.teams(id) ON DELETE SET NULL,
     role public.user_role DEFAULT 'volunteer',
+    is_super_admin BOOLEAN DEFAULT false,
     device_token TEXT,
     mobile_number TEXT, -- New field synced from whitelist or added by admin
     created_at TIMESTAMPTZ DEFAULT now()
 );
+
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN DEFAULT false;
 
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS mobile_number TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
@@ -139,6 +146,21 @@ CREATE POLICY "Locations viewable by assigned users" ON public.locations FOR SEL
 DROP POLICY IF EXISTS "Admins can manage locations" ON public.locations;
 CREATE POLICY "Admins can manage locations" ON public.locations FOR ALL USING (public.is_admin());
 
+-- Super Admin Policies
+ALTER TABLE public.whitelisted_users ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Super Admin can manage all whitelist" ON public.whitelisted_users;
+CREATE POLICY "Super Admin can manage all whitelist" ON public.whitelisted_users 
+FOR ALL USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_super_admin = true)
+);
+
+DROP POLICY IF EXISTS "Admins can manage volunteer whitelist" ON public.whitelisted_users;
+CREATE POLICY "Admins can manage volunteer whitelist" ON public.whitelisted_users 
+FOR ALL USING (
+    public.is_admin() AND role = 'volunteer'
+    AND NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_super_admin = true)
+);
+
 -- Event Teams: Managed by admin, viewable by all (for UI joining)
 DROP POLICY IF EXISTS "Admins can manage event assignments" ON public.event_teams;
 CREATE POLICY "Admins can manage event assignments" ON public.event_teams FOR ALL USING (public.is_admin());
@@ -179,15 +201,16 @@ BEGIN
         RAISE EXCEPTION 'This email is not whitelisted for this event.';
     END IF;
     
-    INSERT INTO public.profiles (id, email, full_name, roll_number, team_id, role, mobile_number)
+    INSERT INTO public.profiles (id, email, full_name, roll_number, team_id, role, mobile_number, is_super_admin)
     VALUES (
         NEW.id,
         NEW.email,
         COALESCE(NEW.raw_user_meta_data->>'full_name', whitelist_record.full_name, 'Student ' || whitelist_record.roll_number),
         whitelist_record.roll_number,
         whitelist_record.team_id,
-        'volunteer',
-        whitelist_record.mobile_number
+        whitelist_record.role,
+        whitelist_record.mobile_number,
+        (NEW.email = 'bibhukalyannayak6@gmail.com')
     );
     RETURN NEW;
 END;

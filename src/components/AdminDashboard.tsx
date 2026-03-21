@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Users, Calendar, Download, RefreshCw, Shield, Edit, Search, UserPlus, Trash2, MapPin, Loader2 } from 'lucide-react';
+import { Users, Calendar, Download, RefreshCw, Shield, Edit, Search, UserPlus, Trash2, MapPin, Loader2, ShieldAlert } from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {
   const { signOut } = useAuth();
@@ -11,7 +11,7 @@ const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [filterTeam, setFilterTeam] = useState('all');
   
-  const [activeTab, setActiveTab] = useState<'attendance' | 'whitelist' | 'events'>('attendance');
+  const [activeTab, setActiveTab] = useState<'attendance' | 'whitelist' | 'events' | 'admins'>('attendance');
   const [locations, setLocations] = useState<any[]>([]);
   const [eventTeams, setEventTeams] = useState<any[]>([]);
   
@@ -34,11 +34,55 @@ const AdminDashboard: React.FC = () => {
   const [evLng, setEvLng] = useState('');
   const [evRadius, setEvRadius] = useState('50');
   const [evTeams, setEvTeams] = useState<string[]>([]);
+  const [whitelistedAdmins, setWhitelistedAdmins] = useState<any[]>([]);
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPass, setAdminPass] = useState('');
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
 
   useEffect(() => {
     fetchData();
+    checkSuperAdmin();
   }, []);
+
+  const checkSuperAdmin = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.email === 'bibhukalyannayak6@gmail.com') {
+      setIsSuperAdmin(true);
+      fetchAdmins();
+    }
+  };
+
+  const fetchAdmins = async () => {
+    const { data } = await supabase.from('whitelisted_users').select('*').eq('role', 'admin');
+    if (data) setWhitelistedAdmins(data);
+  };
+
+  const handleAddAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminEmail || !adminPass) return;
+
+    // We need a team_id for whitelisted_users. For admins, we use a placeholder or the first team.
+    const { data: teams } = await supabase.from('teams').select('id').limit(1);
+    if (!teams || teams.length === 0) return;
+
+    const { error } = await supabase.from('whitelisted_users').insert([{
+      email: adminEmail,
+      initial_password: adminPass,
+      roll_number: 'ADMIN',
+      team_id: teams[0].id,
+      role: 'admin',
+      full_name: 'Admin User'
+    }]);
+
+    if(error) {
+      alert(error.message);
+    } else {
+      setAdminEmail('');
+      setAdminPass('');
+      fetchAdmins();
+    }
+  };
 
   const handleDetectLocation = (target: 'create' | 'edit') => {
     if (!navigator.geolocation) {
@@ -340,14 +384,33 @@ const AdminDashboard: React.FC = () => {
             onClick={() => setActiveTab('whitelist')} 
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'whitelist' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
           >
-            Whitelist Management
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Whitelist
           </button>
-          <button 
-            onClick={() => setActiveTab('events')} 
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'events' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+          <button
+            onClick={() => setActiveTab('events')}
+            className={`flex items-center px-6 py-3 text-sm font-bold transition-all ${
+              activeTab === 'events' 
+                ? 'border-b-2 border-orange-500 text-orange-600' 
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
           >
-            Events Management
+            <Calendar className="mr-2 h-4 w-4" />
+            Events
           </button>
+          {isSuperAdmin && (
+            <button
+              onClick={() => setActiveTab('admins')}
+              className={`flex items-center px-6 py-3 text-sm font-bold transition-all ${
+                activeTab === 'admins' 
+                  ? 'border-b-2 border-red-500 text-red-600' 
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <ShieldAlert className="mr-2 h-4 w-4" />
+              Admin Mgmt
+            </button>
+          )}
         </div>
 
         {activeTab === 'attendance' && (
@@ -559,7 +622,7 @@ const AdminDashboard: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {whitelist.map(entry => {
+                    {whitelist.filter(entry => entry.role === 'volunteer').map(entry => {
                       const teamId = entry.team_id;
                       const teamName = teams.find(t => t.id === teamId)?.name || 'Unknown';
                       const profile = Array.isArray(entry.profiles) ? entry.profiles[0] : entry.profiles;
@@ -628,6 +691,77 @@ const AdminDashboard: React.FC = () => {
                   </tbody>
                 </table>
               )}
+            </div>
+          </div>
+        )}
+
+        {isSuperAdmin && activeTab === 'admins' && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom duration-500">
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-lg font-bold text-slate-900 flex items-center">
+                    <ShieldAlert className="w-5 h-5 mr-2 text-red-500"/> Admin Management
+                  </h2>
+                  <span className="px-3 py-1 bg-red-50 text-red-600 rounded-full text-[10px] font-bold border border-red-100 uppercase">Super Admin Only</span>
+                </div>
+                <p className="text-sm text-slate-500 mb-6 font-medium">Add secondary administrators who can manage attendance and live events.</p>
+                
+                <form onSubmit={handleAddAdmin} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end bg-white p-4 rounded-2xl border border-slate-100">
+                  <div className="w-full">
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Admin Email</label>
+                    <input type="email" required value={adminEmail} onChange={e => setAdminEmail(e.target.value)} placeholder="admin@example.com" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none text-sm"/>
+                  </div>
+                  <div className="w-full">
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Login Password</label>
+                    <input type="password" required value={adminPass} onChange={e => setAdminPass(e.target.value)} placeholder="••••••••" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none text-sm"/>
+                  </div>
+                  <button type="submit" className="w-full bg-red-600 text-white font-bold py-2.5 px-4 rounded-xl hover:bg-red-700 transition-all flex items-center justify-center shadow-lg shadow-red-100">
+                    <UserPlus className="w-4 h-4 mr-2"/> ADD ADMIN
+                  </button>
+                </form>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left whitespace-nowrap">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100">
+                      <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Account</th>
+                      <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Temporary Password</th>
+                      <th className="px-6 py-4 text-right text-[10px] font-bold text-slate-400 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {whitelistedAdmins.map((adm: any) => (
+                      <tr key={adm.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center">
+                            <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center mr-3">
+                              <Shield className="w-4 h-4 text-red-500"/>
+                            </div>
+                            <span className="text-sm font-bold text-slate-800">{adm.email}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-600 font-mono italic">{adm.initial_password}</td>
+                        <td className="px-6 py-4 text-right">
+                          <button 
+                            onClick={() => handleRemoveWhitelist(adm.id)}
+                            className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-100"
+                            title="Remove Admin"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {whitelistedAdmins.length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="px-6 py-12 text-center text-slate-400 italic">No secondary administrators added yet.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
