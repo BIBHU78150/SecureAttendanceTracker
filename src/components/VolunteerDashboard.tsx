@@ -20,7 +20,7 @@ const VolunteerDashboard: React.FC = () => {
   const fetchStatus = async () => {
     setLoading(true);
     // 1. Get all active locations assigned to my team (filtered by RLS)
-    const { data: locs, error } = await supabase.from('locations')
+    const { data: locs } = await supabase.from('locations')
       .select('*')
       .eq('is_active', true);
     
