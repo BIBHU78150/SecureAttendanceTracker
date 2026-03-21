@@ -2,12 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { isUserWithinGeofence } from '../utils/geolocation';
-import { MapPin, CheckCircle, LogOut, ShieldAlert } from 'lucide-react';
+import { MapPin, LogOut, ShieldAlert } from 'lucide-react';
 
 const VolunteerDashboard: React.FC = () => {
   const { profile, signOut } = useAuth();
   const [locations, setLocations] = useState<any[]>([]);
   const [activeLocation, setActiveLocation] = useState<any>(null);
+  const [todayLogs, setTodayLogs] = useState<any[]>([]);
   const [activeLog, setActiveLog] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -27,24 +28,27 @@ const VolunteerDashboard: React.FC = () => {
     if (locs && locs.length > 0) {
       setLocations(locs);
       
-      // Auto-select first one or keep current if it still exists
       const current = activeLocation ? locs.find(l => l.id === activeLocation.id) : locs[0];
       const selected = current || locs[0];
       setActiveLocation(selected);
       
-      // 2. See if the user already punched in today for this specific event
-      const { data: log } = await supabase
+      // 2. Fetch all logs for today for this specific location
+      const { data: logsData } = await supabase
         .from('attendance_logs')
         .select('*')
         .eq('user_id', profile?.id)
         .eq('location_id', selected.id)
         .eq('date', new Date().toISOString().split('T')[0])
-        .maybeSingle();
+        .order('punch_in_time', { ascending: false });
       
-      setActiveLog(log);
+      setTodayLogs(logsData || []);
+      // Active log is the latest one IF it hasn't been punched out yet
+      const latest = logsData?.[0];
+      setActiveLog(latest && !latest.punch_out_time ? latest : null);
     } else {
       setLocations([]);
       setActiveLocation(null);
+      setTodayLogs([]);
       setActiveLog(null);
     }
     setLoading(false);
@@ -101,6 +105,22 @@ const VolunteerDashboard: React.FC = () => {
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
+  };
+
+  const calculateTotalDuration = () => {
+    let totalMs = 0;
+    todayLogs.forEach(log => {
+      if (log.punch_in_time && log.punch_out_time) {
+        totalMs += new Date(log.punch_out_time).getTime() - new Date(log.punch_in_time).getTime();
+      } else if (log.punch_in_time && !log.punch_out_time) {
+        // Current open session contribution up to now
+        totalMs += new Date().getTime() - new Date(log.punch_in_time).getTime();
+      }
+    });
+
+    const hours = Math.floor(totalMs / 3600000);
+    const minutes = Math.floor((totalMs % 3600000) / 60000);
+    return `${hours}h ${minutes}m`;
   };
 
   if (loading) return <div className="p-8 text-center animate-pulse"><div className="h-8 w-8 bg-blue-500 rounded-full mx-auto"></div></div>;
@@ -180,19 +200,13 @@ const VolunteerDashboard: React.FC = () => {
               )}
 
               <div className="grid grid-cols-2 gap-4 mb-8">
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                  <p className="text-sm font-medium text-slate-500 mb-1">Time In</p>
-                  <p className="font-semibold text-slate-900 flex items-center">
-                    {activeLog ? new Date(activeLog.punch_in_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}
-                    {activeLog && <CheckCircle className="w-4 h-4 ml-2 text-emerald-500" />}
-                  </p>
+                <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-100/50">
+                  <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1">Total Stayed Today</p>
+                  <p className="text-2xl font-black text-blue-600">{calculateTotalDuration()}</p>
                 </div>
                 <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                  <p className="text-sm font-medium text-slate-500 mb-1">Time Out</p>
-                  <p className="font-semibold text-slate-900 flex items-center">
-                    {activeLog?.punch_out_time ? new Date(activeLog.punch_out_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}
-                    {activeLog?.punch_out_time && <CheckCircle className="w-4 h-4 ml-2 text-emerald-500" />}
-                  </p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Sessions</p>
+                  <p className="text-2xl font-black text-slate-600">{todayLogs.length}</p>
                 </div>
               </div>
 
@@ -221,13 +235,28 @@ const VolunteerDashboard: React.FC = () => {
                 </button>
               )}
 
-              {activeLog?.punch_out_time && (
-                <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100 text-center">
-                  <div className="w-12 h-12 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <CheckCircle className="w-6 h-6" />
+              {todayLogs.length > 0 && (
+                <div className="mt-8 border-t border-slate-100 pt-8">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Today's Session History</h3>
+                  <div className="space-y-3">
+                    {todayLogs.map(log => (
+                      <div key={log.id} className="flex items-center justify-between p-3 bg-slate-50/50 rounded-xl border border-slate-100 text-sm">
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-2 h-2 rounded-full ${log.punch_out_time ? 'bg-slate-300' : 'bg-emerald-500 animate-pulse'}`}></div>
+                          <span className="font-medium text-slate-700">
+                            {new Date(log.punch_in_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                            {" → "}
+                            {log.punch_out_time ? new Date(log.punch_out_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Active'}
+                          </span>
+                        </div>
+                        {log.punch_out_time && (
+                          <span className="text-xs font-bold text-slate-400">
+                            {Math.round((new Date(log.punch_out_time).getTime() - new Date(log.punch_in_time).getTime()) / 60000)} mins
+                          </span>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                  <h3 className="font-semibold text-emerald-800">You're all set!</h3>
-                  <p className="text-sm text-emerald-600 mt-1">Attendance successfully recorded for today.</p>
                 </div>
               )}
             </div>

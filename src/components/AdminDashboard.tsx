@@ -382,35 +382,65 @@ const AdminDashboard: React.FC = () => {
                       <tr>
                         <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs">Student</th>
                         <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs">Team</th>
-                        <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs">Time In</th>
-                        <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs">Time Out</th>
+                        <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs">Total Duration</th>
+                        <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs">Activity</th>
                         <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {filteredLogs.map(log => {
-                        const teamName = teams.find(t => t.id === log.profiles?.team_id)?.name;
+                      {Object.values(filteredLogs.reduce((acc: any, log: any) => {
+                        const key = `${log.user_id}_${log.location_id}`;
+                        if (!acc[key]) {
+                          acc[key] = {
+                            profile: log.profiles,
+                            location: log.locations,
+                            sessions: [],
+                            totalMs: 0
+                          };
+                        }
+                        acc[key].sessions.push(log);
+                        if (log.punch_in_time && log.punch_out_time) {
+                          acc[key].totalMs += new Date(log.punch_out_time).getTime() - new Date(log.punch_in_time).getTime();
+                        } else if (log.punch_in_time && !log.punch_out_time) {
+                          acc[key].totalMs += new Date().getTime() - new Date(log.punch_in_time).getTime();
+                        }
+                        return acc;
+                      }, {})).map((group: any) => {
+                        const teamName = teams.find(t => t.id === group.profile?.team_id)?.name;
+                        const hours = Math.floor(group.totalMs / 3600000);
+                        const minutes = Math.floor((group.totalMs % 3600000) / 60000);
+                        const latestSession = group.sessions.sort((a: any, b: any) => new Date(b.punch_in_time).getTime() - new Date(a.punch_in_time).getTime())[0];
+                        
                         return (
-                          <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
+                          <tr key={`${group.profile.id}_${group.location.id}`} className="hover:bg-slate-50/50 transition-colors">
                             <td className="px-6 py-4">
-                              <p className="font-semibold text-slate-900">{log.profiles?.full_name}</p>
-                              <p className="text-xs text-slate-500">{log.profiles?.roll_number}</p>
+                              <p className="font-semibold text-slate-900">{group.profile?.full_name}</p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <p className="text-xs text-slate-500">{group.profile?.roll_number}</p>
+                                <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[10px] uppercase font-bold tracking-tighter">
+                                  {group.sessions.length} sessions
+                                </span>
+                              </div>
                             </td>
                             <td className="px-6 py-4">
                               <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
                                 {teamName}
                               </span>
                             </td>
-                            <td className="px-6 py-4 text-slate-600">
-                              {new Date(log.punch_in_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                            <td className="px-6 py-4">
+                              <p className="text-blue-600 font-bold">{hours}h {minutes}m</p>
+                              <p className="text-[10px] text-slate-400">Total Duration</p>
                             </td>
                             <td className="px-6 py-4 text-slate-600">
-                              {log.punch_out_time ? new Date(log.punch_out_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}
+                              <p className="font-medium text-slate-700">
+                                {new Date(latestSession.punch_in_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                              </p>
+                              <p className="text-[10px] text-slate-400">Latest Pulse In</p>
                             </td>
                             <td className="px-6 py-4 text-right space-x-2">
-                              {log.profiles?.device_token && (
+                              {group.profile?.device_token && (
                                 <button 
-                                  onClick={() => handleResetDevice(log.user_id)}
+                                  onClick={() => handleResetDevice(group.profile.id)}
                                   className="inline-flex items-center p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-100"
                                   title="Reset bound device"
                                 >
@@ -419,9 +449,9 @@ const AdminDashboard: React.FC = () => {
                               )}
                               <button 
                                 className="inline-flex items-center p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
-                                title="Edit Record"
+                                title="View All Logs (Upcoming)"
                               >
-                                <Edit className="w-4 h-4" />
+                                <Search className="w-4 h-4" />
                               </button>
                             </td>
                           </tr>
