@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Users, Calendar, Download, RefreshCw, Shield, Edit, Search, UserPlus, Trash2, MapPin, Loader2, ShieldAlert } from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {
-  const { signOut } = useAuth();
+  const { signOut, profile } = useAuth();
   const [logs, setLogs] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
   const [whitelist, setWhitelist] = useState<any[]>([]);
@@ -365,7 +365,12 @@ const AdminDashboard: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <Shield className="h-6 w-6 text-indigo-400" />
-            <h1 className="text-xl font-bold">Admin Portal</h1>
+            <div>
+              <h1 className="text-xl font-bold leading-tight">Admin Portal</h1>
+              {profile?.full_name && (
+                <p className="text-xs text-indigo-300 font-medium tracking-wide">Welcome, {profile.full_name}</p>
+              )}
+            </div>
           </div>
           <button onClick={signOut} className="px-4 py-2 text-sm font-medium bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors">
             Exit Admin
