@@ -33,6 +33,9 @@ const AdminDashboard: React.FC = () => {
   const [evLat, setEvLat] = useState('');
   const [evLng, setEvLng] = useState('');
   const [evRadius, setEvRadius] = useState('50');
+  const [evStartDate, setEvStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [evEndDate, setEvEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
   const [evTeams, setEvTeams] = useState<string[]>([]);
   const [whitelistedAdmins, setWhitelistedAdmins] = useState<any[]>([]);
   const [adminEmail, setAdminEmail] = useState('');
@@ -44,7 +47,7 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     fetchData();
     checkSuperAdmin();
-  }, []);
+  }, [attendanceDate]);
 
   const checkSuperAdmin = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -146,7 +149,6 @@ const AdminDashboard: React.FC = () => {
     }
 
     // Fetch today's logs with profile info
-    const today = new Date().toISOString().split('T')[0];
     const { data: logsData, error: logsError } = await supabase
       .from('attendance_logs')
       .select(`
@@ -154,7 +156,7 @@ const AdminDashboard: React.FC = () => {
         profiles ( full_name, roll_number, team_id, device_token, mobile_number ),
         locations ( event_name )
       `)
-      .eq('date', today);
+      .eq('date', attendanceDate);
       
     if (logsError) console.error("Error fetching logs:", logsError.message);
     if (logsData) setLogs(logsData);
@@ -230,6 +232,8 @@ const AdminDashboard: React.FC = () => {
         target_lat: parseFloat(evLat),
         target_lng: parseFloat(evLng),
         radius_meters: parseInt(evRadius),
+        start_date: evStartDate,
+        end_date: evEndDate,
         is_active: true
       })
       .select()
@@ -252,6 +256,8 @@ const AdminDashboard: React.FC = () => {
       setEvLat('');
       setEvLng('');
       setEvRadius('50');
+      setEvStartDate(new Date().toISOString().split('T')[0]);
+      setEvEndDate(new Date().toISOString().split('T')[0]);
       setEvTeams([]);
       fetchData();
     }
@@ -277,6 +283,8 @@ const AdminDashboard: React.FC = () => {
         target_lat: parseFloat(editingEvent.target_lat),
         target_lng: parseFloat(editingEvent.target_lng),
         radius_meters: parseInt(editingEvent.radius_meters),
+        start_date: editingEvent.start_date,
+        end_date: editingEvent.end_date,
         is_active: editingEvent.is_active
       })
       .eq('id', editingEvent.id);
@@ -451,6 +459,14 @@ const AdminDashboard: React.FC = () => {
                 <h2 className="text-lg font-bold text-slate-900">Attendance Register</h2>
                 
                 <div className="flex items-center gap-3 w-full md:w-auto">
+                  <div className="relative flex-1 md:w-auto">
+                    <input 
+                      type="date"
+                      value={attendanceDate}
+                      onChange={e => setAttendanceDate(e.target.value)}
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 hover:bg-white transition-colors"
+                    />
+                  </div>
                   <div className="relative flex-1 md:w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <select 
@@ -816,6 +832,17 @@ const AdminDashboard: React.FC = () => {
                     </div>
                   </div>
 
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Start Date</label>
+                      <input type="date" required value={evStartDate} onChange={e => setEvStartDate(e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"/>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">End Date</label>
+                      <input type="date" required value={evEndDate} onChange={e => setEvEndDate(e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"/>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Assign Access to Groups (Teams)</label>
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
@@ -975,7 +1002,17 @@ const AdminDashboard: React.FC = () => {
                     <input type="number" required value={editingEvent.radius_meters} onChange={e => setEditingEvent({...editingEvent, radius_meters: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"/>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 gap-4">
+                <div className="grid grid-cols-2 gap-4 mt-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Start Date</label>
+                    <input type="date" required value={editingEvent.start_date || ''} onChange={e => setEditingEvent({...editingEvent, start_date: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">End Date</label>
+                    <input type="date" required value={editingEvent.end_date || ''} onChange={e => setEditingEvent({...editingEvent, end_date: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm"/>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-4 mt-4">
                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                     <div className="flex items-center justify-between mb-3">
                       <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Event Location (Coordinates)</label>

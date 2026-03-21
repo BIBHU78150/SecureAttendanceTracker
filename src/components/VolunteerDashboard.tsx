@@ -20,10 +20,14 @@ const VolunteerDashboard: React.FC = () => {
 
   const fetchStatus = async () => {
     setLoading(true);
+    const today = new Date().toISOString().split('T')[0];
+    
     // 1. Get all active locations assigned to my team (filtered by RLS)
     const { data: locs } = await supabase.from('locations')
       .select('*')
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .lte('start_date', today)
+      .gte('end_date', today);
     
     if (locs && locs.length > 0) {
       setLocations(locs);
@@ -173,14 +177,18 @@ const VolunteerDashboard: React.FC = () => {
                         setActiveLocation(loc);
                         // Trigger log fetch for this new selection
                         const fetchLog = async () => {
-                          const { data: log } = await supabase
+                          const today = new Date().toISOString().split('T')[0];
+                          const { data: logsData } = await supabase
                             .from('attendance_logs')
                             .select('*')
                             .eq('user_id', profile?.id)
                             .eq('location_id', loc.id)
-                            .eq('date', new Date().toISOString().split('T')[0])
-                            .maybeSingle();
-                          setActiveLog(log);
+                            .eq('date', today)
+                            .order('punch_in_time', { ascending: false });
+                            
+                          setTodayLogs(logsData || []);
+                          const latest = logsData?.[0];
+                          setActiveLog(latest && !latest.punch_out_time ? latest : null);
                         };
                         fetchLog();
                       }}

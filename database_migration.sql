@@ -70,6 +70,8 @@ CREATE TABLE IF NOT EXISTS public.locations (
     target_lat FLOAT NOT NULL,
     target_lng FLOAT NOT NULL,
     radius_meters INTEGER DEFAULT 50 NOT NULL,
+    start_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    end_date DATE NOT NULL DEFAULT CURRENT_DATE,
     is_active BOOLEAN DEFAULT true NOT NULL
 );
 
