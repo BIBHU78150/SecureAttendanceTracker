@@ -387,9 +387,9 @@ const AdminDashboard: React.FC = () => {
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl mx-auto w-full p-4 py-8">
+      <main className="flex-1 max-w-7xl mx-auto w-full p-2 sm:p-4 py-4 sm:py-8 overflow-hidden">
         
-        <div className="flex space-x-2 mb-8 bg-slate-200/50 p-1 rounded-xl w-fit">
+        <div className="flex flex-nowrap space-x-2 mb-6 sm:mb-8 bg-slate-200/50 p-1 rounded-xl w-full md:w-fit overflow-x-auto no-scrollbar">
           <button 
             onClick={() => setActiveTab('attendance')} 
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'attendance' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
@@ -431,7 +431,7 @@ const AdminDashboard: React.FC = () => {
 
         {activeTab === 'attendance' && (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-slate-500 mb-1">Unique Students</p>
@@ -459,7 +459,7 @@ const AdminDashboard: React.FC = () => {
               <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4">
                 <h2 className="text-lg font-bold text-slate-900">Attendance Register</h2>
                 
-                <div className="flex items-center gap-3 w-full md:w-auto">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
                   <div className="relative flex-1 md:w-auto">
                     <input 
                       type="date"
@@ -468,7 +468,7 @@ const AdminDashboard: React.FC = () => {
                       className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 hover:bg-white transition-colors"
                     />
                   </div>
-                  <div className="relative flex-1 md:w-64">
+                  <div className="relative flex-1 sm:w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <select 
                       className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
@@ -482,7 +482,7 @@ const AdminDashboard: React.FC = () => {
                   
                   <button 
                     onClick={exportCSV}
-                    className="flex items-center justify-center px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-xl hover:bg-slate-800 transition-colors shadow-sm"
+                    className="flex items-center justify-center px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-xl hover:bg-slate-800 transition-colors shadow-sm w-full sm:w-auto"
                   >
                     <Download className="w-4 h-4 mr-2" /> Export
                   </button>
