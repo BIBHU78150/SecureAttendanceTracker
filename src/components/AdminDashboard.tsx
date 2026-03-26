@@ -45,6 +45,13 @@ const AdminDashboard: React.FC = () => {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
 
+  // Manual Attendance State
+  const [showManualModal, setShowManualModal] = useState(false);
+  const [manualStudentId, setManualStudentId] = useState('');
+  const [manualEventId, setManualEventId] = useState('');
+  const [manualAction, setManualAction] = useState<'in' | 'out'>('in');
+  const [manualLoading, setManualLoading] = useState(false);
+
   useEffect(() => {
     fetchData();
     checkSuperAdmin();
@@ -341,6 +348,62 @@ const AdminDashboard: React.FC = () => {
     fetchData();
   };
 
+  const handleManualAttendance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualStudentId || !manualEventId) return;
+    setManualLoading(true);
+
+    try {
+      const today = getLocalDateString();
+      if (manualAction === 'in') {
+        const { error } = await supabase.from('attendance_logs').insert({
+          user_id: manualStudentId,
+          location_id: manualEventId,
+          date: today,
+          status: 'Present',
+          is_manual_entry: true
+        });
+        if (error) alert(`Error logging manual punch in: ${error.message}`);
+        else {
+          alert('Manual Punch In successful.');
+          setShowManualModal(false);
+          fetchData();
+        }
+      } else {
+        const { data: qlogs, error: fetchErr } = await supabase
+          .from('attendance_logs')
+          .select('*')
+          .eq('user_id', manualStudentId)
+          .eq('location_id', manualEventId)
+          .eq('date', today)
+          .order('punch_in_time', { ascending: false });
+
+        const openSession = qlogs?.find(l => !l.punch_out_time);
+        
+        if (fetchErr) {
+          alert(`Error checking sessions: ${fetchErr.message}`);
+        } else if (!openSession) {
+          alert('There is no currently open active session for this student at this event to Punch Out.');
+        } else {
+          const { error: outErr } = await supabase
+            .from('attendance_logs')
+            .update({ punch_out_time: new Date().toISOString() })
+            .eq('id', openSession.id);
+            
+          if (outErr) alert(`Error logging manual punch out: ${outErr.message}`);
+          else {
+            alert('Manual Punch Out successful.');
+            setShowManualModal(false);
+            fetchData();
+          }
+        }
+      }
+    } catch (err: any) {
+      alert(`Runtime error: ${err.message}`);
+    }
+    setManualLoading(false);
+  };
+
   const exportCSV = () => {
     const headers = ['Name', 'Roll Number', 'Team', 'Time In', 'Time Out', 'Status', 'Manual Entry'];
     const csvRows = logs.map(log => {
@@ -480,6 +543,17 @@ const AdminDashboard: React.FC = () => {
                     </select>
                   </div>
                   
+                  <button 
+                    onClick={() => {
+                      setManualStudentId('');
+                      setManualEventId(locations[0]?.id || '');
+                      setManualAction('in');
+                      setShowManualModal(true);
+                    }}
+                    className="flex items-center justify-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors shadow-sm w-full sm:w-auto"
+                  >
+                    <UserPlus className="w-4 h-4 mr-2" /> Manual Add
+                  </button>
                   <button 
                     onClick={exportCSV}
                     className="flex items-center justify-center px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-xl hover:bg-slate-800 transition-colors shadow-sm w-full sm:w-auto"
@@ -1059,6 +1133,59 @@ const AdminDashboard: React.FC = () => {
                   <button type="button" onClick={() => setEditingEvent(null)} className="flex-1 px-6 py-2 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50">Cancel</button>
                   <button type="submit" disabled={loading} className="flex-1 px-6 py-2 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 disabled:opacity-50">
                     {loading ? 'Updating...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showManualModal && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200 border border-slate-100">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <h3 className="text-lg font-bold text-slate-900 flex items-center">
+                  <UserPlus className="w-5 h-5 mr-2 text-indigo-600" />
+                  Manual Override
+                </h3>
+                <button onClick={() => setShowManualModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors">×</button>
+              </div>
+              <form onSubmit={handleManualAttendance} className="p-6 space-y-5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Student</label>
+                  <select required value={manualStudentId} onChange={e => setManualStudentId(e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm appearance-none cursor-pointer">
+                    <option value="" disabled>Select Student</option>
+                    {whitelist.filter(w => w.profiles).map(w => (
+                      <option key={w.profiles.id} value={w.profiles.id}>{w.full_name} ({w.roll_number})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Event Location</label>
+                  <select required value={manualEventId} onChange={e => setManualEventId(e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm appearance-none cursor-pointer">
+                    <option value="" disabled>Select Event</option>
+                    {locations.map(loc => (
+                      <option key={loc.id} value={loc.id}>{loc.event_name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Attendance Action</label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input type="radio" name="manualAction" checked={manualAction === 'in'} onChange={() => setManualAction('in')} className="text-indigo-600" />
+                      <span className="text-sm font-medium text-slate-700">Punch In (New Session)</span>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input type="radio" name="manualAction" checked={manualAction === 'out'} onChange={() => setManualAction('out')} className="text-indigo-600" />
+                      <span className="text-sm font-medium text-slate-700">Punch Out (Close Active)</span>
+                    </label>
+                  </div>
+                </div>
+                <div className="pt-4 flex gap-3">
+                  <button type="button" onClick={() => setShowManualModal(false)} className="flex-1 px-4 py-2 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">Cancel</button>
+                  <button type="submit" disabled={manualLoading} className="flex-1 px-4 py-2 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm">
+                    {manualLoading ? 'Saving...' : 'Confirm Override'}
                   </button>
                 </div>
               </form>
