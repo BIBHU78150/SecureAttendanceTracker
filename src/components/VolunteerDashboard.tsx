@@ -44,6 +44,7 @@ const VolunteerDashboard: React.FC = () => {
         .eq('user_id', profile?.id)
         .eq('location_id', selected.id)
         .eq('date', getLocalDateString())
+        .eq('is_deleted', false)
         .order('punch_in_time', { ascending: false });
       
       setTodayLogs(logsData || []);

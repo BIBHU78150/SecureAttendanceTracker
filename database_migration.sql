@@ -91,8 +91,12 @@ CREATE TABLE IF NOT EXISTS public.attendance_logs (
     punch_in_time TIMESTAMPTZ NOT NULL DEFAULT now(),
     punch_out_time TIMESTAMPTZ,
     status TEXT DEFAULT 'Present' NOT NULL,
-    is_manual_entry BOOLEAN DEFAULT false NOT NULL
+    is_manual_entry BOOLEAN DEFAULT false NOT NULL,
+    is_deleted BOOLEAN DEFAULT false NOT NULL
 );
+
+-- Ensure columns exist for existing tables
+ALTER TABLE public.attendance_logs ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false NOT NULL;
 
 -- Set up Row Level Security (RLS)
 ALTER TABLE public.teams ENABLE ROW LEVEL SECURITY;

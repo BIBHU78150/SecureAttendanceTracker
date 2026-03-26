@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { getLocalDateString } from '../utils/dateUtils';
-import { Users, Calendar, Download, RefreshCw, Shield, Edit, Search, UserPlus, Trash2, MapPin, Loader2, ShieldAlert } from 'lucide-react';
+import { Users, Calendar, Download, RefreshCw, Shield, Edit, Search, UserPlus, Trash2, MapPin, Loader2, ShieldAlert, Archive, Undo2 } from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {
   const { signOut, profile } = useAuth();
@@ -12,7 +12,8 @@ const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [filterTeam, setFilterTeam] = useState('all');
   
-  const [activeTab, setActiveTab] = useState<'attendance' | 'whitelist' | 'events' | 'admins'>('attendance');
+  const [activeTab, setActiveTab] = useState<'attendance' | 'whitelist' | 'events' | 'admins' | 'deleted'>('attendance');
+  const [deletedLogs, setDeletedLogs] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [eventTeams, setEventTeams] = useState<any[]>([]);
   
@@ -167,7 +168,10 @@ const AdminDashboard: React.FC = () => {
       .eq('date', attendanceDate);
       
     if (logsError) console.error("Error fetching logs:", logsError.message);
-    if (logsData) setLogs(logsData);
+    if (logsData) {
+      setLogs(logsData.filter(l => !l.is_deleted));
+      setDeletedLogs(logsData.filter(l => l.is_deleted));
+    }
 
     // Fetch locations and event_teams
     const { data: locData } = await supabase.from('locations').select('*');
@@ -405,12 +409,23 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleDeleteAttendance = async (sessionIds: string[]) => {
-    if (!window.confirm("Are you sure you want to permanently delete this student's attendance records for this entire day? This action cannot be undone.")) return;
+    if (!window.confirm("Are you sure you want to move this student's attendance records to the Deleted Archive?")) return;
     
-    const { error } = await supabase.from('attendance_logs').delete().in('id', sessionIds);
-    if (error) alert(`Error deleting records: ${error.message}`);
+    const { error } = await supabase.from('attendance_logs').update({ is_deleted: true }).in('id', sessionIds);
+    if (error) alert(`Error archiving records: ${error.message}`);
     else {
-      alert('Records successfully deleted.');
+      alert('Records successfully archived.');
+      fetchData();
+    }
+  };
+
+  const handleRestoreAttendance = async (sessionIds: string[]) => {
+    if (!window.confirm("Restore these records back to the active attendance roster?")) return;
+    
+    const { error } = await supabase.from('attendance_logs').update({ is_deleted: false }).in('id', sessionIds);
+    if (error) alert(`Error restoring records: ${error.message}`);
+    else {
+      alert('Records successfully restored.');
       fetchData();
     }
   };
@@ -501,6 +516,17 @@ const AdminDashboard: React.FC = () => {
               Admin Mgmt
             </button>
           )}
+          <button
+            onClick={() => setActiveTab('deleted')}
+            className={`flex items-center px-6 py-3 text-sm font-bold transition-all ${
+              activeTab === 'deleted' 
+                ? 'border-b-2 border-slate-800 text-slate-900' 
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Archive className="mr-2 h-4 w-4" />
+            Deleted Archive
+          </button>
         </div>
 
         {activeTab === 'attendance' && (
@@ -674,6 +700,68 @@ const AdminDashboard: React.FC = () => {
               </div>
             </div>
           </>
+        )}
+
+        {activeTab === 'deleted' && (
+          <div className="bg-slate-100/50 rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="p-6 border-b border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
+              <h2 className="text-lg font-bold text-slate-700 flex items-center">
+                <Archive className="w-5 h-5 mr-2" /> Deleted Records Archive
+              </h2>
+            </div>
+            <div className="overflow-x-auto">
+              {loading ? (
+                <div className="p-12 text-center animate-pulse"><div className="h-8 w-8 bg-slate-400 rounded-full mx-auto"></div></div>
+              ) : (
+                <table className="w-full text-left text-sm whitespace-nowrap">
+                  <thead className="bg-slate-200 text-slate-500 sticky top-0">
+                    <tr>
+                      <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs">Student</th>
+                      <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs">Team</th>
+                      <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs">Deleted Session Date</th>
+                      <th className="px-6 py-4 font-medium uppercase tracking-wider text-xs text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {Object.values(deletedLogs.reduce((acc: any, log: any) => {
+                      const key = `${log.user_id}_${log.location_id}`;
+                      if (!acc[key]) acc[key] = { profile: log.profiles, location: log.locations, date: log.date, sessions: [] };
+                      acc[key].sessions.push(log);
+                      return acc;
+                    }, {})).map((group: any) => {
+                      const teamName = teams.find(t => t.id === group.profile?.team_id)?.name;
+                      return (
+                        <tr key={`${group.profile.id}_${group.location.id}`} className="hover:bg-slate-200/50 transition-colors opacity-75">
+                          <td className="px-6 py-4">
+                            <p className="font-semibold text-slate-700">{group.profile?.full_name}</p>
+                            <p className="text-xs text-slate-500">{group.profile?.roll_number} • {group.sessions.length} sessions</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-200 text-slate-700">{teamName}</span>
+                          </td>
+                          <td className="px-6 py-4 text-slate-500 font-medium">
+                            {new Date(group.date).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-4 text-right space-x-2">
+                            <button 
+                              onClick={() => handleRestoreAttendance(group.sessions.map((s: any) => s.id))}
+                              className="inline-flex items-center px-3 py-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-indigo-100 font-bold text-xs"
+                              title="Restore these records"
+                            >
+                              <Undo2 className="w-4 h-4 mr-2" /> RESTORE
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {deletedLogs.length === 0 && (
+                      <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-500 font-medium">No deleted records in the archive.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
         )}
 
         {activeTab === 'whitelist' && (
