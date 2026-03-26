@@ -493,11 +493,15 @@ const AdminDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-10 shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center space-x-3 sm:space-x-4">
-            <img src="https://gietuerp.in/Login/images/logo.png" alt="GIET Logo" className="h-16 sm:h-20 md:h-24 w-auto object-contain drop-shadow-sm" />
+            <img 
+              src="https://gietuerp.in/Login/images/logo.png" 
+              alt="GIET Logo" 
+              className="h-10 sm:h-12 md:h-14 w-auto object-contain scale-110 origin-left drop-shadow-sm" 
+            />
             <div>
-              <h1 className="text-xl font-bold leading-tight">Admin Portal</h1>
+              <h1 className="text-lg md:text-xl font-bold leading-tight">Admin Portal</h1>
               {profile?.full_name && (
                 <p className="text-xs text-indigo-300 font-medium tracking-wide">Welcome, {profile.full_name}</p>
               )}
