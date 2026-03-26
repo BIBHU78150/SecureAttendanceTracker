@@ -404,6 +404,17 @@ const AdminDashboard: React.FC = () => {
     setManualLoading(false);
   };
 
+  const handleDeleteAttendance = async (sessionIds: string[]) => {
+    if (!window.confirm("Are you sure you want to permanently delete this student's attendance records for this entire day? This action cannot be undone.")) return;
+    
+    const { error } = await supabase.from('attendance_logs').delete().in('id', sessionIds);
+    if (error) alert(`Error deleting records: ${error.message}`);
+    else {
+      alert('Records successfully deleted.');
+      fetchData();
+    }
+  };
+
   const exportCSV = () => {
     const headers = ['Name', 'Roll Number', 'Team', 'Time In', 'Time Out', 'Status', 'Manual Entry'];
     const csvRows = logs.map(log => {
@@ -640,10 +651,11 @@ const AdminDashboard: React.FC = () => {
                                 </button>
                               )}
                               <button 
-                                className="inline-flex items-center p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
-                                title="View All Logs (Upcoming)"
+                                onClick={() => handleDeleteAttendance(group.sessions.map((s: any) => s.id))}
+                                className="inline-flex items-center p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-100"
+                                title="Delete Attendance For Today"
                               >
-                                <Search className="w-4 h-4" />
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             </td>
                           </tr>
