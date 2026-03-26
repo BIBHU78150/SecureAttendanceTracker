@@ -533,13 +533,15 @@ const AdminDashboard: React.FC = () => {
           >
             Daily Attendance
           </button>
-          <button 
-            onClick={() => setActiveTab('active')} 
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'active' ? 'bg-white shadow text-rose-600' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            <Activity className="mr-2 h-4 w-4 inline" />
-            Live Sessions
-          </button>
+          {isSuperAdmin && (
+            <button 
+              onClick={() => setActiveTab('active')} 
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'active' ? 'bg-white shadow text-rose-600' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <Activity className="mr-2 h-4 w-4 inline" />
+              Live Sessions
+            </button>
+          )}
           <button 
             onClick={() => setActiveTab('whitelist')} 
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'whitelist' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
