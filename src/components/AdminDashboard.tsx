@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { getLocalDateString } from '../utils/dateUtils';
-import { Users, Calendar, Download, RefreshCw, Shield, Edit, Search, UserPlus, Trash2, MapPin, Loader2, ShieldAlert, Archive, Undo2 } from 'lucide-react';
+import { Users, Calendar, Download, RefreshCw, Shield, Edit, Search, UserPlus, Trash2, MapPin, Loader2, ShieldAlert, Archive, Undo2, Activity } from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {
   const { signOut, profile } = useAuth();
@@ -12,7 +12,7 @@ const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [filterTeam, setFilterTeam] = useState('all');
   
-  const [activeTab, setActiveTab] = useState<'attendance' | 'whitelist' | 'events' | 'admins' | 'deleted'>('attendance');
+  const [activeTab, setActiveTab] = useState<'attendance' | 'active' | 'whitelist' | 'events' | 'admins' | 'deleted'>('attendance');
   const [deletedLogs, setDeletedLogs] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [eventTeams, setEventTeams] = useState<any[]>([]);
@@ -441,6 +441,17 @@ const AdminDashboard: React.FC = () => {
     setManualLoading(false);
   };
 
+  const handleForcePunchOut = async (logId: string) => {
+    if (!window.confirm("Force punch out this student right now?")) return;
+    
+    const { error } = await supabase.from('attendance_logs').update({ punch_out_time: new Date().toISOString() }).eq('id', logId);
+    if (error) alert(`Error forcing punch out: ${error.message}`);
+    else {
+      alert('Student punched out successfully.');
+      fetchData();
+    }
+  };
+
   const handleDeleteAttendance = async (sessionIds: string[]) => {
     if (!window.confirm("Are you sure you want to move this student's attendance records to the Deleted Archive?")) return;
     
@@ -521,6 +532,13 @@ const AdminDashboard: React.FC = () => {
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'attendance' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
           >
             Daily Attendance
+          </button>
+          <button 
+            onClick={() => setActiveTab('active')} 
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'active' ? 'bg-white shadow text-rose-600' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            <Activity className="mr-2 h-4 w-4 inline" />
+            Live Sessions
           </button>
           <button 
             onClick={() => setActiveTab('whitelist')} 
@@ -737,6 +755,63 @@ const AdminDashboard: React.FC = () => {
               </div>
             </div>
           </>
+        )}
+
+        {activeTab === 'active' && (
+          <div className="bg-rose-50/50 rounded-3xl shadow-sm border border-rose-100 overflow-hidden">
+            <div className="p-6 border-b border-rose-100 flex flex-col md:flex-row items-center justify-between gap-4">
+              <h2 className="text-lg font-bold text-rose-800 flex items-center">
+                <Activity className="w-5 h-5 mr-2" /> Live Sessions (Missing Punch Out)
+              </h2>
+            </div>
+            <div className="overflow-x-auto">
+              {loading ? (
+                <div className="p-12 text-center animate-pulse"><div className="h-8 w-8 bg-rose-400 rounded-full mx-auto"></div></div>
+              ) : (
+                <table className="w-full text-left text-sm whitespace-nowrap">
+                  <thead className="bg-rose-100 text-rose-700 sticky top-0">
+                    <tr>
+                      <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">Student</th>
+                      <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">Team</th>
+                      <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">Punched In Since</th>
+                      <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-rose-100/50">
+                    {filteredLogs.filter(log => !log.punch_out_time).map(log => {
+                      const teamName = teams.find(t => t.id === log.profiles?.team_id)?.name;
+                      return (
+                        <tr key={log.id} className="hover:bg-rose-100/30 transition-colors">
+                          <td className="px-6 py-4">
+                            <p className="font-semibold text-slate-900">{log.profiles?.full_name}</p>
+                            <p className="text-xs text-slate-500">{log.profiles?.roll_number}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-rose-100 text-rose-700">{teamName}</span>
+                          </td>
+                          <td className="px-6 py-4 text-slate-600 font-medium">
+                            {new Date(log.punch_in_time).toLocaleTimeString()}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button 
+                              onClick={() => handleForcePunchOut(log.id)}
+                              className="inline-flex items-center px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl transition-colors font-bold text-xs"
+                              title="Force Punch Out"
+                            >
+                              FORCE PUNCH OUT
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {filteredLogs.filter(log => !log.punch_out_time).length === 0 && (
+                      <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-500 font-medium">Amazing! Everyone has punched out safely.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
         )}
 
         {activeTab === 'deleted' && (
