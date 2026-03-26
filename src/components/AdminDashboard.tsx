@@ -50,7 +50,10 @@ const AdminDashboard: React.FC = () => {
   const [showManualModal, setShowManualModal] = useState(false);
   const [manualStudentId, setManualStudentId] = useState('');
   const [manualEventId, setManualEventId] = useState('');
-  const [manualAction, setManualAction] = useState<'in' | 'out'>('in');
+  const [manualAction, setManualAction] = useState<'in' | 'out' | 'custom'>('in');
+  const [manualDate, setManualDate] = useState(getLocalDateString());
+  const [manualTimeIn, setManualTimeIn] = useState('');
+  const [manualTimeOut, setManualTimeOut] = useState('');
   const [manualLoading, setManualLoading] = useState(false);
 
   useEffect(() => {
@@ -372,6 +375,36 @@ const AdminDashboard: React.FC = () => {
           alert('Manual Punch In successful.');
           setShowManualModal(false);
           fetchData();
+        }
+      } else if (manualAction === 'custom') {
+        if (!manualDate || !manualTimeIn || !manualTimeOut) {
+          alert('Please provide Date, Time In, and Time Out for a custom entry.');
+          setManualLoading(false);
+          return;
+        }
+        
+        try {
+          const punchInStr = new Date(`${manualDate}T${manualTimeIn}`).toISOString();
+          const punchOutStr = new Date(`${manualDate}T${manualTimeOut}`).toISOString();
+
+          const { error } = await supabase.from('attendance_logs').insert({
+            user_id: manualStudentId,
+            location_id: manualEventId,
+            date: manualDate,
+            punch_in_time: punchInStr,
+            punch_out_time: punchOutStr,
+            status: 'Present',
+            is_manual_entry: true
+          });
+
+          if (error) alert(`Error logging custom entry: ${error.message}`);
+          else {
+            alert('Custom Session logged successfully.');
+            setShowManualModal(false);
+            fetchData();
+          }
+        } catch (e: any) {
+          alert(`Invalid date or time format. Please check your inputs.`);
         }
       } else {
         const { data: qlogs, error: fetchErr } = await supabase
@@ -1271,17 +1304,40 @@ const AdminDashboard: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Attendance Action</label>
-                  <div className="flex gap-4">
+                  <div className="flex flex-col gap-2">
                     <label className="flex items-center space-x-2 cursor-pointer">
                       <input type="radio" name="manualAction" checked={manualAction === 'in'} onChange={() => setManualAction('in')} className="text-indigo-600" />
-                      <span className="text-sm font-medium text-slate-700">Punch In (New Session)</span>
+                      <span className="text-sm font-medium text-slate-700">Punch In Now (New Session)</span>
                     </label>
                     <label className="flex items-center space-x-2 cursor-pointer">
                       <input type="radio" name="manualAction" checked={manualAction === 'out'} onChange={() => setManualAction('out')} className="text-indigo-600" />
-                      <span className="text-sm font-medium text-slate-700">Punch Out (Close Active)</span>
+                      <span className="text-sm font-medium text-slate-700">Punch Out Now (Close Active)</span>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input type="radio" name="manualAction" checked={manualAction === 'custom'} onChange={() => setManualAction('custom')} className="text-indigo-600" />
+                      <span className="text-sm font-medium text-slate-700">Custom Entry (Past / Full Session)</span>
                     </label>
                   </div>
                 </div>
+
+                {manualAction === 'custom' && (
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-2 space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Date</label>
+                      <input type="date" required={manualAction === 'custom'} value={manualDate} onChange={e => setManualDate(e.target.value)} className="w-full px-3 py-1.5 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm"/>
+                    </div>
+                    <div className="flex gap-3">
+                      <div className="flex-1">
+                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Time In</label>
+                        <input type="time" required={manualAction === 'custom'} value={manualTimeIn} onChange={e => setManualTimeIn(e.target.value)} className="w-full px-3 py-1.5 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm"/>
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Time Out</label>
+                        <input type="time" required={manualAction === 'custom'} value={manualTimeOut} onChange={e => setManualTimeOut(e.target.value)} className="w-full px-3 py-1.5 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm"/>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="pt-4 flex gap-3">
                   <button type="button" onClick={() => setShowManualModal(false)} className="flex-1 px-4 py-2 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">Cancel</button>
                   <button type="submit" disabled={manualLoading} className="flex-1 px-4 py-2 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm">
