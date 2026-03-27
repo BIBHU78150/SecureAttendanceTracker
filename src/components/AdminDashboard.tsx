@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { getLocalDateString } from '../utils/dateUtils';
-import { Users, Calendar, Download, RefreshCw, Shield, Edit, Search, UserPlus, Trash2, MapPin, Loader2, ShieldAlert, Archive, Undo2, Activity } from 'lucide-react';
+import { Users, Calendar, Download, RefreshCw, Shield, Edit, Search, UserPlus, Trash2, MapPin, Loader2, ShieldAlert, Archive, Undo2, Activity, ClipboardCheck, CheckCircle, XCircle } from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {
   const { signOut, profile } = useAuth();
@@ -12,8 +12,9 @@ const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [filterTeam, setFilterTeam] = useState('all');
   
-  const [activeTab, setActiveTab] = useState<'attendance' | 'active' | 'whitelist' | 'events' | 'admins' | 'deleted'>('attendance');
+  const [activeTab, setActiveTab] = useState<'attendance' | 'active' | 'whitelist' | 'events' | 'admins' | 'deleted' | 'approvals'>('attendance');
   const [deletedLogs, setDeletedLogs] = useState<any[]>([]);
+  const [approvalRequests, setApprovalRequests] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [eventTeams, setEventTeams] = useState<any[]>([]);
   
@@ -182,6 +183,16 @@ const AdminDashboard: React.FC = () => {
 
     const { data: etData } = await supabase.from('event_teams').select('*');
     if (etData) setEventTeams(etData);
+
+    const { data: reqData } = await supabase.from('manual_attendance_requests').select('*').order('created_at', { ascending: false });
+    if (reqData && locData && profilesData) {
+      setApprovalRequests(reqData.map(req => ({
+        ...req,
+        student: profilesData.find(p => p.id === req.student_id),
+        requestor: profilesData.find(p => p.id === req.requested_by),
+        location: locData.find(l => l.id === req.location_id)
+      })));
+    }
 
     setLoading(false);
   };
@@ -387,21 +398,38 @@ const AdminDashboard: React.FC = () => {
           const punchInStr = new Date(`${manualDate}T${manualTimeIn}`).toISOString();
           const punchOutStr = new Date(`${manualDate}T${manualTimeOut}`).toISOString();
 
-          const { error } = await supabase.from('attendance_logs').insert({
-            user_id: manualStudentId,
-            location_id: manualEventId,
-            date: manualDate,
-            punch_in_time: punchInStr,
-            punch_out_time: punchOutStr,
-            status: 'Present',
-            is_manual_entry: true
-          });
+          if (isSuperAdmin) {
+            const { error } = await supabase.from('attendance_logs').insert({
+              user_id: manualStudentId,
+              location_id: manualEventId,
+              date: manualDate,
+              punch_in_time: punchInStr,
+              punch_out_time: punchOutStr,
+              status: 'Present',
+              is_manual_entry: true
+            });
 
-          if (error) alert(`Error logging custom entry: ${error.message}`);
-          else {
-            alert('Custom Session logged successfully.');
-            setShowManualModal(false);
-            fetchData();
+            if (error) alert(`Error logging custom entry: ${error.message}`);
+            else {
+              alert('Custom Session logged successfully.');
+              setShowManualModal(false);
+              fetchData();
+            }
+          } else {
+            const { error } = await supabase.from('manual_attendance_requests').insert({
+              student_id: manualStudentId,
+              location_id: manualEventId,
+              date: manualDate,
+              punch_in_time: punchInStr,
+              punch_out_time: punchOutStr,
+              requested_by: profile?.id
+            });
+            if (error) alert(`Error submitting request: ${error.message}`);
+            else {
+              alert('Custom Session requested. Awaiting Super Admin approval.');
+              setShowManualModal(false);
+              fetchData();
+            }
           }
         } catch (e: any) {
           alert(`Invalid date or time format. Please check your inputs.`);
@@ -450,6 +478,30 @@ const AdminDashboard: React.FC = () => {
       alert('Student punched out successfully.');
       fetchData();
     }
+  };
+
+  const handleApproveRequest = async (req: any, approved: boolean) => {
+    if (!window.confirm(`Are you sure you want to ${approved ? 'APPROVE' : 'REJECT'} this request?`)) return;
+
+    if (approved) {
+      const { error: insErr } = await supabase.from('attendance_logs').insert({
+        user_id: req.student_id,
+        location_id: req.location_id,
+        date: req.date,
+        punch_in_time: req.punch_in_time,
+        punch_out_time: req.punch_out_time,
+        status: 'Present',
+        is_manual_entry: true
+      });
+      if (insErr) {
+        alert(`Failed to insert to logs: ${insErr.message}`);
+        return;
+      }
+    }
+
+    const { error: updErr } = await supabase.from('manual_attendance_requests').update({ status: approved ? 'approved' : 'rejected' }).eq('id', req.id);
+    if (updErr) alert(`Failed to update request status: ${updErr.message}`);
+    else fetchData();
   };
 
   const handleDeleteAttendance = async (sessionIds: string[]) => {
@@ -584,6 +636,19 @@ const AdminDashboard: React.FC = () => {
             <Archive className="mr-2 h-4 w-4" />
             Deleted Archive
           </button>
+          {isSuperAdmin && (
+            <button
+              onClick={() => setActiveTab('approvals')}
+              className={`flex items-center px-6 py-3 text-sm font-bold transition-all ${
+                activeTab === 'approvals' 
+                  ? 'border-b-2 border-emerald-500 text-emerald-600' 
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <ClipboardCheck className="mr-2 h-4 w-4" />
+              Approvals
+            </button>
+          )}
         </div>
 
         {activeTab === 'attendance' && (
@@ -812,6 +877,112 @@ const AdminDashboard: React.FC = () => {
                   </tbody>
                 </table>
               )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'approvals' && (
+          <div className="space-y-6">
+            <div className="bg-emerald-50/50 rounded-3xl shadow-sm border border-emerald-100 overflow-hidden">
+              <div className="p-6 border-b border-emerald-100">
+                <h2 className="text-lg font-bold text-emerald-800 flex items-center">
+                  <ClipboardCheck className="w-5 h-5 mr-2" /> Pending Approvals
+                </h2>
+                <p className="text-sm text-emerald-600/80 mt-1">Review custom attendance sessions submitted by other administrators.</p>
+              </div>
+              <div className="overflow-x-auto">
+                {loading ? (
+                  <div className="p-12 text-center animate-pulse"><div className="h-8 w-8 bg-emerald-400 rounded-full mx-auto"></div></div>
+                ) : (
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                    <thead className="bg-emerald-100 text-emerald-700 sticky top-0">
+                      <tr>
+                        <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">Requested By</th>
+                        <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">Student Profile</th>
+                        <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">Proposed Session details</th>
+                        <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs text-right">Review Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-emerald-100/50 bg-white/40">
+                      {approvalRequests.filter(req => req.status === 'pending').map(req => (
+                        <tr key={req.id} className="hover:bg-emerald-50 transition-colors">
+                          <td className="px-6 py-4">
+                            <p className="font-semibold text-slate-800">{req.requestor?.full_name}</p>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-600 mt-1">ADMIN</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="font-semibold text-slate-900">{req.student?.full_name}</p>
+                            <p className="text-xs text-slate-500">{req.student?.roll_number}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="font-medium text-slate-700">{req.location?.event_name}</p>
+                            <p className="text-xs text-slate-500">
+                              {new Date(req.date).toLocaleDateString()} | {new Date(req.punch_in_time).toLocaleTimeString([], {timeStyle: 'short'})} - {new Date(req.punch_out_time).toLocaleTimeString([], {timeStyle: 'short'})}
+                            </p>
+                          </td>
+                          <td className="px-6 py-4 text-right space-x-2">
+                            <button 
+                              onClick={() => handleApproveRequest(req, true)}
+                              className="inline-flex items-center justify-center p-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-600 hover:text-white rounded-lg transition-colors border border-emerald-200"
+                              title="Approve Request"
+                            >
+                              <CheckCircle className="w-5 h-5" />
+                            </button>
+                            <button 
+                              onClick={() => handleApproveRequest(req, false)}
+                              className="inline-flex items-center justify-center p-2 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white rounded-lg transition-colors border border-rose-200"
+                              title="Reject Request"
+                            >
+                              <XCircle className="w-5 h-5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {approvalRequests.filter(req => req.status === 'pending').length === 0 && (
+                        <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-500 font-medium">No pending manual session requests.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="p-5 border-b border-slate-100">
+                <h3 className="text-md font-bold text-slate-700">Approval History</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm whitespace-nowrap">
+                  <thead className="bg-slate-50 text-slate-500 sticky top-0">
+                    <tr>
+                      <th className="px-6 py-3 font-medium uppercase tracking-wider text-xs">Request details</th>
+                      <th className="px-6 py-3 font-medium uppercase tracking-wider text-xs">Student</th>
+                      <th className="px-6 py-3 font-medium uppercase tracking-wider text-xs">Result</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {approvalRequests.filter(req => req.status !== 'pending').map(req => (
+                      <tr key={req.id}>
+                        <td className="px-6 py-3">
+                          <p className="text-xs text-slate-400">By {req.requestor?.full_name}</p>
+                          <p className="text-sm font-medium text-slate-700">{new Date(req.created_at).toLocaleDateString()}</p>
+                        </td>
+                        <td className="px-6 py-3">
+                          <p className="text-sm font-semibold text-slate-700">{req.student?.full_name}</p>
+                        </td>
+                        <td className="px-6 py-3">
+                          <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-bold ${req.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                            {req.status.toUpperCase()}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    {approvalRequests.filter(req => req.status !== 'pending').length === 0 && (
+                      <tr><td colSpan={3} className="px-6 py-6 text-center text-slate-400">History is empty.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

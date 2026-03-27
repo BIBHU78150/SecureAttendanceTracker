@@ -36,6 +36,29 @@ CREATE TABLE IF NOT EXISTS public.whitelisted_users (
     role public.user_role DEFAULT 'volunteer' NOT NULL
 );
 
+-- Ensure that team mapping handles case-insensitive emails seamlessly
+UPDATE public.whitelisted_users SET email = LOWER(email);
+UPDATE public.profiles SET email = LOWER(email);
+
+-- Table: manual_attendance_requests
+CREATE TABLE IF NOT EXISTS public.manual_attendance_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    location_id UUID NOT NULL REFERENCES public.locations(id) ON DELETE CASCADE,
+    requested_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    punch_in_time TIMESTAMPTZ NOT NULL,
+    punch_out_time TIMESTAMPTZ NOT NULL,
+    status TEXT DEFAULT 'pending' NOT NULL, -- 'pending', 'approved', 'rejected'
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+ALTER TABLE public.manual_attendance_requests ENABLE ROW LEVEL SECURITY;
+
+-- Admins can create and read requests
+DROP POLICY IF EXISTS "Admins can manage manual requests" ON public.manual_attendance_requests;
+CREATE POLICY "Admins can manage manual requests" ON public.manual_attendance_requests FOR ALL USING (public.is_admin());
+
 -- Ensure columns exist for existing tables
 ALTER TABLE public.whitelisted_users ADD COLUMN IF NOT EXISTS role public.user_role DEFAULT 'volunteer' NOT NULL;
 
