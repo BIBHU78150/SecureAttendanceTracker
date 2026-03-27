@@ -19,6 +19,7 @@ type Profile = {
   roll_number?: string;
   role: 'admin' | 'volunteer';
   team_id?: string;
+  team_ids?: string[];
   device_token?: string;
 };
 

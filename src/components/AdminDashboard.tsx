@@ -23,6 +23,7 @@ const AdminDashboard: React.FC = () => {
   const [wlName, setWlName] = useState('');
   const [wlRoll, setWlRoll] = useState('');
   const [wlTeamId, setWlTeamId] = useState('');
+  const [wlTeamIds, setWlTeamIds] = useState<string[]>([]);
   const [wlPassword, setWlPassword] = useState('');
   const [wlMobile, setWlMobile] = useState('');
   const [wlLoading, setWlLoading] = useState(false);
@@ -88,6 +89,7 @@ const AdminDashboard: React.FC = () => {
       initial_password: adminPass,
       roll_number: 'ADMIN',
       team_id: teams[0].id,
+      team_ids: [teams[0].id],
       role: 'admin',
       full_name: adminName || 'Administrator'
     }]);
@@ -148,7 +150,7 @@ const AdminDashboard: React.FC = () => {
 
     const { data: profilesData, error: profilesError } = await supabase
       .from('profiles')
-      .select('id, email, full_name, role, mobile_number, device_token, team_id');
+      .select('id, email, full_name, role, mobile_number, device_token, team_id, team_ids');
     if (profilesError) console.error("Error fetching profiles (for enrollment status):", profilesError.message);
 
     if (wlData) {
@@ -166,7 +168,7 @@ const AdminDashboard: React.FC = () => {
       .from('attendance_logs')
       .select(`
         *,
-        profiles ( full_name, roll_number, team_id, device_token, mobile_number ),
+        profiles ( full_name, roll_number, team_id, team_ids, device_token, mobile_number ),
         locations ( event_name )
       `)
       .eq('date', attendanceDate);
@@ -218,7 +220,8 @@ const AdminDashboard: React.FC = () => {
         email: editingStudent.email,
         full_name: editingStudent.full_name,
         roll_number: editingStudent.roll_number,
-        team_id: editingStudent.team_id,
+        team_id: editingStudent.team_ids?.length > 0 ? editingStudent.team_ids[0] : null,
+        team_ids: editingStudent.team_ids || [],
         initial_password: editingStudent.initial_password,
         mobile_number: editingStudent.mobile_number
       })
@@ -235,7 +238,8 @@ const AdminDashboard: React.FC = () => {
             email: editingStudent.email,
             full_name: editingStudent.full_name,
             roll_number: editingStudent.roll_number,
-            team_id: editingStudent.team_id,
+            team_id: editingStudent.team_ids?.length > 0 ? editingStudent.team_ids[0] : null,
+            team_ids: editingStudent.team_ids || [],
             mobile_number: editingStudent.mobile_number
           })
           .eq('id', profile.id);
@@ -342,7 +346,8 @@ const AdminDashboard: React.FC = () => {
       email: wlEmail,
       full_name: wlName,
       roll_number: wlRoll,
-      team_id: wlTeamId,
+      team_id: wlTeamIds.length > 0 ? wlTeamIds[0] : null,
+      team_ids: wlTeamIds,
       initial_password: wlPassword,
       mobile_number: wlMobile
     }, { onConflict: 'email' });
@@ -355,6 +360,7 @@ const AdminDashboard: React.FC = () => {
       setWlRoll('');
       setWlPassword('');
       setWlMobile('');
+      setWlTeamIds([]);
       fetchData();
     }
     setWlLoading(false);
@@ -550,8 +556,8 @@ const AdminDashboard: React.FC = () => {
   };
 
   const filteredLogs = filterTeam === 'all' 
-    ? logs 
-    : logs.filter(log => log.profiles?.team_id === filterTeam);
+    ? logs.filter(log => !log.is_deleted)
+    : logs.filter(log => !log.is_deleted && (log.profiles?.team_ids?.length ? log.profiles.team_ids.includes(filterTeam) : log.profiles?.team_id === filterTeam));
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -757,7 +763,8 @@ const AdminDashboard: React.FC = () => {
                         }
                         return acc;
                       }, {})).map((group: any) => {
-                        const teamName = teams.find(t => t.id === group.profile?.team_id)?.name;
+                        const tIds = group.profile?.team_ids?.length > 0 ? group.profile.team_ids : (group.profile?.team_id ? [group.profile.team_id] : []);
+                        const teamNames = tIds.map((id:string) => teams.find((t:any)=>t.id===id)?.name).filter(Boolean).join(', ');
                         const hours = Math.floor(group.totalMs / 3600000);
                         const minutes = Math.floor((group.totalMs % 3600000) / 60000);
                         const latestSession = group.sessions.sort((a: any, b: any) => new Date(b.punch_in_time).getTime() - new Date(a.punch_in_time).getTime())[0];
@@ -774,8 +781,8 @@ const AdminDashboard: React.FC = () => {
                               </div>
                             </td>
                             <td className="px-6 py-4">
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
-                                {teamName}
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-medium bg-indigo-50 text-indigo-700 max-w-xs truncate" title={teamNames}>
+                                {teamNames || 'Unknown'}
                               </span>
                             </td>
                             <td className="px-6 py-4">
@@ -846,7 +853,8 @@ const AdminDashboard: React.FC = () => {
                   </thead>
                   <tbody className="divide-y divide-rose-100/50">
                     {filteredLogs.filter(log => !log.punch_out_time).map(log => {
-                      const teamName = teams.find(t => t.id === log.profiles?.team_id)?.name;
+                      const tIds = log.profiles?.team_ids?.length > 0 ? log.profiles.team_ids : (log.profiles?.team_id ? [log.profiles.team_id] : []);
+                      const teamNames = tIds.map((id:string) => teams.find((t:any)=>t.id===id)?.name).filter(Boolean).join(', ');
                       return (
                         <tr key={log.id} className="hover:bg-rose-100/30 transition-colors">
                           <td className="px-6 py-4">
@@ -854,7 +862,7 @@ const AdminDashboard: React.FC = () => {
                             <p className="text-xs text-slate-500">{log.profiles?.roll_number}</p>
                           </td>
                           <td className="px-6 py-4">
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-rose-100 text-rose-700">{teamName}</span>
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-medium bg-rose-100 text-rose-700 max-w-xs truncate" title={teamNames}>{teamNames || 'Unknown'}</span>
                           </td>
                           <td className="px-6 py-4 text-slate-600 font-medium">
                             {new Date(log.punch_in_time).toLocaleTimeString()}
@@ -1078,10 +1086,21 @@ const AdminDashboard: React.FC = () => {
                   <input type="text" required value={wlRoll} onChange={e => setWlRoll(e.target.value)} placeholder="23CSEAIML057" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"/>
                 </div>
                 <div className="w-full">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Assigned Team</label>
-                  <select required value={wlTeamId} onChange={e => setWlTeamId(e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
-                    {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Assigned Teams</label>
+                  <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto w-full p-2 border border-slate-200 rounded-xl bg-white">
+                    {teams.map(team => (
+                      <label key={team.id} className={`flex items-center px-3 py-1 cursor-pointer rounded-full text-xs font-medium border transition-all ${wlTeamIds.includes(team.id) ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                        <input type="checkbox" className="hidden"
+                          checked={wlTeamIds.includes(team.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) setWlTeamIds([...wlTeamIds, team.id]);
+                            else setWlTeamIds(wlTeamIds.filter(id => id !== team.id));
+                          }}
+                        />
+                        {team.name}
+                      </label>
+                    ))}
+                  </div>
                 </div>
                 <div className="w-full">
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Mobile Number</label>
@@ -1429,10 +1448,25 @@ const AdminDashboard: React.FC = () => {
                   <input type="email" required value={editingStudent.email} onChange={e => setEditingStudent({...editingStudent, email: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"/>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Assigned Team</label>
-                  <select required value={editingStudent.team_id} onChange={e => setEditingStudent({...editingStudent, team_id: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                    {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Assigned Teams</label>
+                  <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto w-full p-2 border border-slate-200 rounded-xl bg-white">
+                    {teams.map(team => {
+                      const currentTeams = editingStudent.team_ids || (editingStudent.team_id ? [editingStudent.team_id] : []);
+                      const isChecked = currentTeams.includes(team.id);
+                      return (
+                        <label key={team.id} className={`flex items-center px-3 py-1 cursor-pointer rounded-full text-xs font-medium border transition-all ${isChecked ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                          <input type="checkbox" className="hidden"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) setEditingStudent({...editingStudent, team_ids: [...currentTeams, team.id]});
+                              else setEditingStudent({...editingStudent, team_ids: currentTeams.filter((id: string) => id !== team.id)});
+                            }}
+                          />
+                          {team.name}
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Initial Password</label>

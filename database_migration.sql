@@ -167,7 +167,7 @@ CREATE POLICY "Locations viewable by assigned users" ON public.locations FOR SEL
     public.is_admin() OR 
     EXISTS (
         SELECT 1 FROM public.event_teams et
-        JOIN public.profiles p ON p.team_id = et.team_id
+        JOIN public.profiles p ON (p.team_id = et.team_id OR et.team_id = ANY(p.team_ids))
         WHERE et.location_id = public.locations.id AND p.id = auth.uid()
     )
 );
@@ -230,13 +230,14 @@ BEGIN
         RAISE EXCEPTION 'This email is not whitelisted for this event.';
     END IF;
     
-    INSERT INTO public.profiles (id, email, full_name, roll_number, team_id, role, mobile_number, is_super_admin)
+    INSERT INTO public.profiles (id, email, full_name, roll_number, team_id, team_ids, role, mobile_number, is_super_admin)
     VALUES (
         NEW.id,
         NEW.email,
         COALESCE(NEW.raw_user_meta_data->>'full_name', whitelist_record.full_name, 'Student ' || whitelist_record.roll_number),
         whitelist_record.roll_number,
         whitelist_record.team_id,
+        whitelist_record.team_ids,
         whitelist_record.role,
         whitelist_record.mobile_number,
         (NEW.email = 'bibhukalyannayak6@gmail.com')
@@ -301,3 +302,7 @@ BEGIN
   );
 END;
 $$;
+
+-- Phase 10: Multi-Team Student Assignments (Zero Downtime Schema Arrays)
+ALTER TABLE public.whitelisted_users ADD COLUMN IF NOT EXISTS team_ids UUID[] DEFAULT '{}';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS team_ids UUID[] DEFAULT '{}';
