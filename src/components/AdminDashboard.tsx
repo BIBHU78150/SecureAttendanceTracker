@@ -796,15 +796,13 @@ const AdminDashboard: React.FC = () => {
                               <p className="text-[10px] text-slate-400">Latest Pulse In</p>
                             </td>
                             <td className="px-6 py-4 text-right space-x-2">
-                              {group.profile?.device_token && (
-                                <button 
-                                  onClick={() => handleResetDevice(group.profile.id)}
-                                  className="inline-flex items-center p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-100"
-                                  title="Reset bound device"
-                                >
-                                  <RefreshCw className="w-4 h-4" />
-                                </button>
-                              )}
+                              <button 
+                                onClick={() => group.profile?.device_token ? handleResetDevice(group.profile.id) : null}
+                                className={`inline-flex items-center p-2 rounded-lg transition-colors border border-transparent ${group.profile?.device_token ? 'text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-100' : 'text-slate-200 cursor-not-allowed'}`}
+                                title={group.profile?.device_token ? "Reset bound device" : "No device bound for this user"}
+                              >
+                                <RefreshCw className="w-4 h-4" />
+                              </button>
                               <button 
                                 onClick={() => handleDeleteAttendance(group.sessions.map((s: any) => s.id))}
                                 className="inline-flex items-center p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-100"
