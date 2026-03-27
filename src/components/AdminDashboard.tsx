@@ -957,6 +957,7 @@ const AdminDashboard: React.FC = () => {
                     <tr>
                       <th className="px-6 py-3 font-medium uppercase tracking-wider text-xs">Request details</th>
                       <th className="px-6 py-3 font-medium uppercase tracking-wider text-xs">Student</th>
+                      <th className="px-6 py-3 font-medium uppercase tracking-wider text-xs">Proposed Session details</th>
                       <th className="px-6 py-3 font-medium uppercase tracking-wider text-xs">Result</th>
                     </tr>
                   </thead>
@@ -971,6 +972,12 @@ const AdminDashboard: React.FC = () => {
                           <p className="text-sm font-semibold text-slate-700">{req.student?.full_name}</p>
                         </td>
                         <td className="px-6 py-3">
+                          <p className="font-medium text-slate-700">{req.location?.event_name}</p>
+                          <p className="text-xs text-slate-500">
+                            {new Date(req.date).toLocaleDateString()} | {new Date(req.punch_in_time).toLocaleTimeString([], {timeStyle: 'short'})} - {new Date(req.punch_out_time).toLocaleTimeString([], {timeStyle: 'short'})}
+                          </p>
+                        </td>
+                        <td className="px-6 py-3">
                           <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-bold ${req.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
                             {req.status.toUpperCase()}
                           </span>
@@ -978,7 +985,7 @@ const AdminDashboard: React.FC = () => {
                       </tr>
                     ))}
                     {approvalRequests.filter(req => req.status !== 'pending').length === 0 && (
-                      <tr><td colSpan={3} className="px-6 py-6 text-center text-slate-400">History is empty.</td></tr>
+                      <tr><td colSpan={4} className="px-6 py-6 text-center text-slate-400">History is empty.</td></tr>
                     )}
                   </tbody>
                 </table>
