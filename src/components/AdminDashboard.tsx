@@ -1131,9 +1131,12 @@ const AdminDashboard: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {whitelist.filter(entry => entry.role === 'volunteer').map(entry => {
-                      const teamId = entry.team_id;
-                      const teamName = teams.find(t => t.id === teamId)?.name || 'Unknown';
+                    {whitelist
+                      .filter(entry => entry.role === 'volunteer')
+                      .sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''))
+                      .map(entry => {
+                      const tIds = entry.team_ids?.length > 0 ? entry.team_ids : (entry.team_id ? [entry.team_id] : []);
+                      const teamNames = tIds.map((id: string) => teams.find((t:any) => t.id === id)?.name).filter(Boolean);
                       const profile = Array.isArray(entry.profiles) ? entry.profiles[0] : entry.profiles;
                       const isJoined = !!profile;
                       return (
@@ -1149,9 +1152,15 @@ const AdminDashboard: React.FC = () => {
                           </td>
                           <td className="px-6 py-4 text-slate-600">{entry.roll_number}</td>
                           <td className="px-6 py-4">
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
-                              {teamName}
-                            </span>
+                            <div className="flex flex-wrap gap-1 max-w-[150px]">
+                              {teamNames.length > 0 ? teamNames.map((name: string, i: number) => (
+                                <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-50 border border-indigo-100 text-indigo-700">
+                                  {name}
+                                </span>
+                              )) : (
+                                <span className="text-xs text-slate-400 italic">No assigned teams</span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4">
                             {isJoined ? (
