@@ -163,7 +163,7 @@ const AdminDashboard: React.FC = () => {
       setWhitelist(joinedData);
     }
 
-    // Fetch today's logs with profile info
+    // Fetch today's ACTIVE logs with profile info
     const { data: logsData, error: logsError } = await supabase
       .from('attendance_logs')
       .select(`
@@ -171,12 +171,28 @@ const AdminDashboard: React.FC = () => {
         profiles ( full_name, roll_number, team_id, team_ids, device_token, mobile_number ),
         locations ( event_name )
       `)
-      .eq('date', attendanceDate);
+      .eq('date', attendanceDate)
+      .eq('is_deleted', false);
       
-    if (logsError) console.error("Error fetching logs:", logsError.message);
+    if (logsError) console.error("Error fetching active logs:", logsError.message);
     if (logsData) {
-      setLogs(logsData.filter(l => !l.is_deleted));
-      setDeletedLogs(logsData.filter(l => l.is_deleted));
+      setLogs(logsData);
+    }
+
+    // Fetch ALL deleted logs globally
+    const { data: deletedData, error: deletedError } = await supabase
+      .from('attendance_logs')
+      .select(`
+        *,
+        profiles ( full_name, roll_number, team_id, team_ids, device_token, mobile_number ),
+        locations ( event_name )
+      `)
+      .eq('is_deleted', true)
+      .order('punch_in_time', { ascending: false });
+
+    if (deletedError) console.error("Error fetching deleted logs:", deletedError.message);
+    if (deletedData) {
+      setDeletedLogs(deletedData);
     }
 
     // Fetch locations and event_teams
